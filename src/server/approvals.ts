@@ -70,7 +70,17 @@ export async function markManualSubmitted(id: string, manualReportId: string, no
     await db.project.update({ where: { id: approval.projectId }, data: { status: "submitted", nextAction: `Track manual submission report ${manualReportId}`, blocker: null } });
   }
   if (approval.taskId) {
-    await db.task.update({ where: { id: approval.taskId }, data: { status: "completed", nextAction: `Monitor report ${manualReportId}`, blocker: null } });
+    const task = await db.task.update({
+      where: { id: approval.taskId },
+      data: { status: "completed", nextAction: `Monitor report ${manualReportId}`, blocker: null },
+      select: { agentId: true }
+    });
+    if (task.agentId) {
+      await db.agent.update({
+        where: { id: task.agentId },
+        data: { status: "idle", currentTask: null }
+      });
+    }
   }
   await db.event.create({ data: { type: "approval.manual_submitted", severity: "info", message: `Manual submission recorded: ${manualReportId}`, approvalId: approval.id, projectId: approval.projectId, taskId: approval.taskId, metadata: { actorEmail, note, manualReportId } } });
   return approval;

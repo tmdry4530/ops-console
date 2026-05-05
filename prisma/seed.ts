@@ -35,13 +35,13 @@ async function main() {
 
   const bountyAgent = await prisma.agent.upsert({
     where: { slug: "trading-bounty" },
-    update: { status: "waiting_approval", health: "ok", currentTask: "capyfi-oracle-report" },
+    update: { health: "ok" },
     create: { slug: "trading-bounty", name: "Trading Bounty Agent", status: "waiting_approval", health: "ok", currentTask: "capyfi-oracle-report" }
   });
 
   const bountyProject = await prisma.project.upsert({
     where: { slug: "capyfi-bounty" },
-    update: { nextAction: "Manual Immunefi submission after logged-in scope confirmation" },
+    update: {},
     create: { slug: "capyfi-bounty", name: "CapyFi Bounty Submission", status: "active", nextAction: "Manual Immunefi submission after logged-in scope confirmation", blocker: "Logged-in Immunefi scope confirmation required" }
   });
 
@@ -82,7 +82,7 @@ async function main() {
 
   const revenueProject = await prisma.project.upsert({
     where: { slug: "revenue-manual-outreach" },
-    update: { nextAction: "Draft outreach requires operator review and manual send" },
+    update: {},
     create: { slug: "revenue-manual-outreach", name: "Revenue Manual Outreach", status: "active", revenueType: "manual_outreach", nextAction: "Draft outreach requires operator review and manual send" }
   });
 
