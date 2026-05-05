@@ -45,11 +45,14 @@ Current Mac mini deployment is live.
 - LaunchAgents:
   - `ai.company.ops-console.app`
   - `ai.company.ops-console.proxy`
+  - `ai.company.ops-console.live-status` updates safe local service status every 60 seconds and ingests it into the Ops Console database.
 - Logs:
   - `~/Library/Logs/ops-console/app.out.log`
   - `~/Library/Logs/ops-console/app.err.log`
   - `~/Library/Logs/ops-console/proxy.out.log`
   - `~/Library/Logs/ops-console/proxy.err.log`
+  - `~/Library/Logs/ops-console/live-status.out.log`
+  - `~/Library/Logs/ops-console/live-status.err.log`
 - Health check: `bash /Users/domclaw/ops-console/ops/mac-mini/healthcheck.sh`
 - Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.
 

@@ -68,6 +68,9 @@ Passed:
   - `GET /dashboard` with operator header returned OK.
   - `GET http://127.0.0.1:3010/dashboard` returned OK for local browser use.
   - LAN URL is `http://192.168.35.36:3010/dashboard`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
+- Added live Mac mini status ingestion:
+  - `ai.company.ops-console.live-status` writes safe launchd service status JSON files under ignored `ops/status/*.json` every 60 seconds.
+  - Ingestion now surfaces Company/Auth/Crypto gateways, crypto signal collector, and Ops Console app/proxy in the Agents tab.
 
 ## File/folder organization pass
 
