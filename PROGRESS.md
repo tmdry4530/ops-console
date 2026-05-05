@@ -49,3 +49,21 @@ Passed:
 - App container healthcheck reached `healthy` after setting `HOSTNAME=0.0.0.0`/`PORT=3000` in Compose app environment.
 - Status JSON ingestion now persists agent/project/task/artifacts/approval records for `ops/status/*.json` contracts.
 - Final rebuild/recreate after status ingestion support passed: lint, typecheck, tests, production build, Docker build, app health, dashboard smoke, app healthcheck `healthy`.
+
+## Mac mini deployment
+
+Passed:
+
+- Installed Docker CLI, Docker Compose, and Colima via Homebrew.
+- Started Colima as a Homebrew service for login persistence.
+- Deployed repo at `/Users/domclaw/ops-console`.
+- Started Postgres and Redis via Docker Compose; both report `healthy`.
+- Applied Prisma migrations and seed against the live local Postgres instance.
+- Built the standalone Next.js production output.
+- Installed launchd agents:
+  - `ai.company.ops-console.app` runs the standalone Next.js app on `127.0.0.1:3000`/`0.0.0.0:3000`.
+  - `ai.company.ops-console.proxy` runs a loopback auth proxy on `127.0.0.1:3010`.
+- Runtime smoke passed:
+  - `GET /api/health` returned OK.
+  - `GET /dashboard` with operator header returned OK.
+  - `GET http://127.0.0.1:3010/dashboard` returned OK for browser use.

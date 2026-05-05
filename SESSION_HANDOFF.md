@@ -33,3 +33,23 @@ Remaining caveats:
 - Workers are runnable entrypoints but do not process BullMQ jobs continuously yet.
 
 App container healthcheck is now healthy with Compose `HOSTNAME=0.0.0.0` and `PORT=3000`.
+
+## Mac mini deployment handoff
+
+Current Mac mini deployment is live.
+
+- Repo path: `/Users/domclaw/ops-console`
+- Browser URL: `http://127.0.0.1:3010/dashboard`
+- Direct app URL: `http://127.0.0.1:3000` with `x-ops-operator-email` header
+- LaunchAgents:
+  - `ai.company.ops-console.app`
+  - `ai.company.ops-console.proxy`
+- Logs:
+  - `~/Library/Logs/ops-console/app.out.log`
+  - `~/Library/Logs/ops-console/app.err.log`
+  - `~/Library/Logs/ops-console/proxy.out.log`
+  - `~/Library/Logs/ops-console/proxy.err.log`
+- Health check: `bash /Users/domclaw/ops-console/ops/mac-mini/healthcheck.sh`
+- Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.
+
+Operational caveat: this is private-loopback deployment. Do not expose `3010` or `3000` publicly without replacing the header proxy with real auth/SSO and public hardening.
