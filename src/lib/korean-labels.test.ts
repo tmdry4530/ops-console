@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTimeKo, labelForHealth, labelForStatus } from "./korean-labels";
+import {
+  formatDateTimeKo,
+  labelForApprovalType,
+  labelForEventMessage,
+  labelForHealth,
+  labelForRisk,
+  labelForRouteSegment,
+  labelForStatus
+} from "./korean-labels";
 
 describe("korean-friendly labels", () => {
   it("renders operator-facing agent statuses in Korean", () => {
     expect(labelForStatus("running")).toBe("실행 중");
+    expect(labelForStatus("active")).toBe("진행 중");
+    expect(labelForStatus("project")).toBe("프로젝트");
+    expect(labelForStatus("manual outreach")).toBe("수동 아웃리치");
     expect(labelForStatus("waiting_approval")).toBe("승인 대기");
     expect(labelForStatus("blocked")).toBe("차단됨");
     expect(labelForStatus("custom_state")).toBe("custom state");
@@ -13,6 +24,16 @@ describe("korean-friendly labels", () => {
     expect(labelForHealth("ok")).toBe("정상");
     expect(labelForHealth("degraded")).toBe("주의");
     expect(labelForHealth("failing")).toBe("장애");
+  });
+
+  it("renders risk, approval types, and route segments in Korean", () => {
+    expect(labelForRisk("medium")).toBe("중간");
+    expect(labelForRisk("critical")).toBe("긴급");
+    expect(labelForApprovalType("bounty_submission")).toBe("바운티 제출");
+    expect(labelForApprovalType("revenue_outreach")).toBe("매출 아웃리치");
+    expect(labelForRouteSegment("dashboard")).toBe("대시보드");
+    expect(labelForRouteSegment("events")).toBe("이벤트");
+    expect(labelForEventMessage("Status ingested: ops/status/auth-manager.json")).toBe("상태 수집됨: ops/status/auth-manager.json");
   });
 
   it("formats timestamps for Korean operators", () => {

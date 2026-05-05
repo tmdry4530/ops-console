@@ -6,6 +6,7 @@ import { ProjectBoard } from "@/components/project-board";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { Icons } from "@/components/icons";
+import { labelForApprovalType, labelForHealth, labelForRisk } from "@/lib/korean-labels";
 import { getDashboardSummary } from "@/server/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -21,13 +22,13 @@ export default async function DashboardPage() {
     <>
       <div className="page-head">
         <div className="titles">
-          <h1>Operations overview</h1>
-          <div className="sub">Private control plane · last sync just now</div>
+          <h1>운영 현황</h1>
+          <div className="sub">프라이빗 컨트롤 플레인 · 방금 동기화됨</div>
         </div>
         <div className="actions">
-          <button className="btn ghost sm">Export snapshot</button>
+          <button className="btn ghost sm">스냅샷 내보내기</button>
           <button className="btn sm" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 13, height: 13, display: "inline-flex" }}>{Icons.refresh}</span> Refresh
+            <span style={{ width: 13, height: 13, display: "inline-flex" }}>{Icons.refresh}</span> 새로고침
           </button>
         </div>
       </div>
@@ -57,14 +58,14 @@ export default async function DashboardPage() {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-0)" }}>
-                Highest-priority: {critical.title}
+                최우선 확인: {critical.title}
               </div>
               <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
-                {critical.summary} · risk <strong style={{ color: "var(--danger)" }}>{critical.riskLevel}</strong>
+                {critical.summary} · 위험도 <strong style={{ color: "var(--danger)" }}>{labelForRisk(critical.riskLevel)}</strong>
               </div>
             </div>
             <Link href={`/approvals/${critical.id}` as Route} className="btn primary">
-              Open decision <span style={{ width: 13, height: 13, display: "inline-flex" }}>{Icons.arrow}</span>
+              결정 열기 <span style={{ width: 13, height: 13, display: "inline-flex" }}>{Icons.arrow}</span>
             </Link>
           </div>
         </div>
@@ -73,33 +74,33 @@ export default async function DashboardPage() {
       <div className="grid-12">
         <div className="span-3">
           <MetricCard
-            label="Pending approvals"
+            label="승인 대기"
             value={String(pending.length)}
             alert={pending.length > 0}
-            delta={`${summary.agents.length} agents tracked`}
+            delta={`에이전트 ${summary.agents.length}개 추적 중`}
           />
         </div>
         <div className="span-3">
           <MetricCard
-            label="Active agents"
+            label="실행 중인 에이전트"
             value={`${activeAgents}/${summary.agents.length}`}
-            delta="monitoring"
+            delta="모니터링 중"
             trend="up"
           />
         </div>
         <div className="span-3">
           <MetricCard
-            label="Failed jobs"
+            label="실패 작업"
             value={String(summary.failedJobs)}
-            delta={summary.failedJobs > 0 ? "action needed" : "all clear"}
+            delta={summary.failedJobs > 0 ? "조치 필요" : "이상 없음"}
             trend={summary.failedJobs > 0 ? "down" : undefined}
           />
         </div>
         <div className="span-3">
           <MetricCard
-            label="Artifacts"
+            label="산출물"
             value={String(summary.artifacts.length)}
-            delta={`${restrictedArtifacts} restricted`}
+            delta={`제한됨 ${restrictedArtifacts}개`}
           />
         </div>
       </div>
@@ -108,11 +109,11 @@ export default async function DashboardPage() {
         <div className="span-8 vstack" style={{ gap: 20 }}>
           <div className="card">
             <div className="card-head">
-              <div className="title">Approvals queue</div>
-              <div className="sub">· {pending.length} pending</div>
+              <div className="title">승인 대기열</div>
+              <div className="sub">· 대기 {pending.length}건</div>
               <div className="right">
                 <Link href="/approvals" className="btn ghost sm">
-                  View all <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
+                  전체 보기 <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
                 </Link>
               </div>
             </div>
@@ -120,17 +121,17 @@ export default async function DashboardPage() {
               <table className="tbl">
                 <thead>
                   <tr>
-                    <th>Type</th>
-                    <th>Title</th>
-                    <th>Risk</th>
-                    <th>Status</th>
+                    <th>유형</th>
+                    <th>제목</th>
+                    <th>위험도</th>
+                    <th>상태</th>
                   </tr>
                 </thead>
                 <tbody>
                   {summary.approvals.slice(0, 5).map((a) => (
                     <tr key={a.id}>
                       <td>
-                        <span className="tag">{a.type}</span>
+                        <span className="tag">{labelForApprovalType(a.type)}</span>
                       </td>
                       <td>
                         <Link href={`/approvals/${a.id}` as Route} style={{ fontWeight: 500, color: "var(--text-0)" }}>
@@ -148,7 +149,7 @@ export default async function DashboardPage() {
                   {summary.approvals.length === 0 && (
                     <tr>
                       <td colSpan={4} className="empty">
-                        No pending approvals.
+                        승인 대기 건 없음
                       </td>
                     </tr>
                   )}
@@ -159,10 +160,10 @@ export default async function DashboardPage() {
 
           <div className="card">
             <div className="card-head">
-              <div className="title">Project board</div>
+              <div className="title">프로젝트 보드</div>
               <div className="right">
                 <Link href="/projects" className="btn ghost sm">
-                  View all <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
+                  전체 보기 <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
                 </Link>
               </div>
             </div>
@@ -175,11 +176,11 @@ export default async function DashboardPage() {
         <div className="span-4 vstack" style={{ gap: 20 }}>
           <div className="card">
             <div className="card-head">
-              <div className="title">Agent fleet</div>
-              <div className="sub">· {summary.agents.length} agents</div>
+              <div className="title">에이전트 현황</div>
+              <div className="sub">· {summary.agents.length}개</div>
               <div className="right">
                 <Link href="/agents" className="btn ghost sm">
-                  Open <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
+                  열기 <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
                 </Link>
               </div>
             </div>
@@ -190,7 +191,7 @@ export default async function DashboardPage() {
                     <span className={`sev ${a.health === "ok" ? "ok" : "warn"}`} />
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{a.name}</div>
-                      <div className="muted" style={{ fontSize: 11.5 }}>{a.currentTask ?? "—"}</div>
+                      <div className="muted" style={{ fontSize: 11.5 }}>상태: {labelForHealth(a.health)} · {a.currentTask ?? "현재 작업 없음"}</div>
                     </span>
                   </li>
                 ))}
@@ -200,10 +201,10 @@ export default async function DashboardPage() {
 
           <div className="card">
             <div className="card-head">
-              <div className="title">Recent events</div>
+              <div className="title">최근 이벤트</div>
               <div className="right">
                 <Link href="/events" className="btn ghost sm">
-                  Stream <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
+                  스트림 <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
                 </Link>
               </div>
             </div>
@@ -214,10 +215,10 @@ export default async function DashboardPage() {
 
           <div className="card">
             <div className="card-head">
-              <div className="title">Recent artifacts</div>
+              <div className="title">최근 산출물</div>
               <div className="right">
                 <Link href="/artifacts" className="btn ghost sm">
-                  Registry <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
+                  저장소 <span style={{ width: 12, height: 12, display: "inline-flex" }}>{Icons.arrow}</span>
                 </Link>
               </div>
             </div>
@@ -229,7 +230,7 @@ export default async function DashboardPage() {
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       <span className="mono" style={{ fontSize: 12 }}>{art.path?.split("/").pop() ?? art.title}</span>
                     </span>
-                    {art.restricted ? <span className="tag" style={{ color: "var(--warn)" }}>restricted</span> : null}
+                    {art.restricted ? <span className="tag" style={{ color: "var(--warn)" }}>제한됨</span> : null}
                   </li>
                 ))}
               </ul>

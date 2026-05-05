@@ -1,5 +1,9 @@
 const STATUS_LABELS: Record<string, string> = {
   running: "실행 중",
+  active: "진행 중",
+  project: "프로젝트",
+  "manual outreach": "수동 아웃리치",
+  manual_outreach: "수동 아웃리치",
   idle: "대기 중",
   waiting_approval: "승인 대기",
   pending: "대기",
@@ -26,12 +30,56 @@ const HEALTH_LABELS: Record<string, string> = {
   critical: "긴급"
 };
 
+const RISK_LABELS: Record<string, string> = {
+  low: "낮음",
+  medium: "중간",
+  high: "높음",
+  critical: "긴급"
+};
+
+const APPROVAL_TYPE_LABELS: Record<string, string> = {
+  bounty_submission: "바운티 제출",
+  revenue_outreach: "매출 아웃리치",
+  command_execution: "명령 실행",
+  policy_change: "정책 변경"
+};
+
+const ROUTE_SEGMENT_LABELS: Record<string, string> = {
+  dashboard: "대시보드",
+  approvals: "승인",
+  agents: "에이전트",
+  projects: "프로젝트",
+  artifacts: "산출물",
+  events: "이벤트",
+  policies: "정책",
+  settings: "설정"
+};
+
 export function labelForStatus(status: string): string {
   return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
 }
 
 export function labelForHealth(health: string): string {
   return HEALTH_LABELS[health] ?? labelForStatus(health);
+}
+
+export function labelForRisk(risk: string): string {
+  return RISK_LABELS[risk] ?? labelForStatus(risk);
+}
+
+export function labelForApprovalType(type: string): string {
+  return APPROVAL_TYPE_LABELS[type] ?? labelForStatus(type);
+}
+
+export function labelForRouteSegment(segment: string): string {
+  return ROUTE_SEGMENT_LABELS[segment] ?? labelForStatus(segment);
+}
+
+export function labelForEventMessage(message: string): string {
+  if (message.startsWith("Status ingested: ")) {
+    return message.replace("Status ingested: ", "상태 수집됨: ");
+  }
+  return message;
 }
 
 export function formatDateTimeKo(value: Date | string | null | undefined): string {
