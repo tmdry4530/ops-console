@@ -68,3 +68,11 @@ Passed:
   - `GET /dashboard` with operator header returned OK.
   - `GET http://127.0.0.1:3010/dashboard` returned OK for local browser use.
   - LAN URL is `http://192.168.35.36:3010/dashboard`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
+
+## File/folder organization pass
+
+- Moved the frontend UI composition guide into `docs/frontend/UI_GUIDE.md`.
+- Added `docs/INDEX.md` so documentation is discoverable by operators and the ingestion contract.
+- Updated `README.md` with documentation pointers.
+- Kept required root control documents in place because `AGENTS.md` and the production goal reference them directly.
+

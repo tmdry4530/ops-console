@@ -54,3 +54,8 @@ Current Mac mini deployment is live.
 - Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.
 
 Operational caveat: this is private LAN deployment. The browser proxy listens on `0.0.0.0:3010` but only allows `127.0.0.1`, `::1`, and `192.168.35.244`; other client IPs receive `403 Forbidden`. Do not expose `3010` or `3000` publicly without replacing the header proxy with real auth/SSO and public hardening.
+
+## Documentation organization update
+
+Frontend UI guidance now lives at `docs/frontend/UI_GUIDE.md`, with `docs/INDEX.md` as the documentation index. Root control documents remain at the repo root intentionally for goal/agent compatibility.
+

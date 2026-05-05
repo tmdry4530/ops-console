@@ -21,6 +21,11 @@ pnpm dev
 
 The initial skeleton exposes `/dashboard` and `/api/health`. Feature implementation still needs to wire database-backed auth, approvals, ingestion, SSE, and workers.
 
+## Documentation
+
+- Frontend UI composition and connection guide: `docs/frontend/UI_GUIDE.md`
+- Documentation index for operators and ingestion: `docs/INDEX.md`
+
 ## Verification
 
 ```bash
