@@ -1,6 +1,9 @@
 import { notFound } from "next/navigation";
+import type { Route } from "next";
+import Link from "next/link";
 import { ArtifactLink } from "@/components/artifact-link";
 import { EventTimeline } from "@/components/event-timeline";
+import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/lib/db";
 
@@ -8,21 +11,133 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const project = await db.project.findUnique({ where: { id }, include: { tasks: true, approvals: true, artifacts: true, events: { orderBy: { createdAt: "desc" }, take: 25 } } });
+  const project = await db.project.findUnique({
+    where: { id },
+    include: {
+      approvals: true,
+      artifacts: true,
+      events: { orderBy: { createdAt: "desc" }, take: 20 }
+    }
+  });
   if (!project) notFound();
 
-  const revenue = project.revenueType ? "Revenue board: manual outreach path" : "Revenue board: no active revenue pipeline";
-  const bounty = project.slug.includes("bounty") ? "Bounty board: submission and report tracking" : "Bounty board: no active bounty item";
-  const crypto = project.slug.includes("crypto") ? "Crypto signal board: active" : "Crypto signal board: no active signal";
-
   return (
-    <section className="space-y-6">
-      <div className="rounded-3xl border border-[var(--line)] bg-[var(--panel)] p-6"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs uppercase tracking-[0.28em] text-[var(--accent)]">{project.slug}</p><h2 className="mt-2 text-2xl font-semibold">{project.name}</h2></div><StatusBadge label={project.status} tone={project.status === "blocked" ? "danger" : "neutral"} /></div><p className="mt-4 text-sm text-[var(--muted)]">Next: {project.nextAction ?? "none"}</p>{project.blocker ? <p className="mt-2 text-sm text-[var(--warning)]">Blocker: {project.blocker}</p> : null}</div>
-      <div className="grid gap-3 md:grid-cols-3">{[revenue, bounty, crypto].map((item) => <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4" key={item}>{item}</div>)}</div>
-      <section className="rounded-3xl border border-[var(--line)] bg-[var(--panel)] p-6"><h3 className="text-xl font-semibold">Approvals and blockers</h3><div className="mt-4 space-y-3">{project.approvals.map((approval) => <div className="rounded-2xl border border-[var(--line)] bg-[#07110f] p-4" key={approval.id}>{approval.title} · {approval.status}</div>)}</div></section>
-      <section className="rounded-3xl border border-[var(--line)] bg-[var(--panel)] p-6"><h3 className="text-xl font-semibold">Tasks</h3><div className="mt-4 space-y-3">{project.tasks.map((task) => <div className="rounded-2xl border border-[var(--line)] bg-[#07110f] p-4" key={task.id}>{task.title} · {task.status}</div>)}</div></section>
-      <section className="rounded-3xl border border-[var(--line)] bg-[var(--panel)] p-6"><h3 className="text-xl font-semibold">Artifacts</h3><div className="mt-4 grid gap-3 md:grid-cols-2">{project.artifacts.map((artifact) => <ArtifactLink key={artifact.id} path={artifact.path} restricted={artifact.restricted} title={artifact.title} />)}</div></section>
-      <section className="rounded-3xl border border-[var(--line)] bg-[var(--panel)] p-6"><h3 className="text-xl font-semibold">Timeline</h3><div className="mt-4"><EventTimeline events={project.events} /></div></section>
-    </section>
+    <>
+      <div className="page-head">
+        <div className="titles">
+          <div className="row" style={{ gap: 8, marginBottom: 6 }}>
+            <Link href="/projects" className="btn ghost sm">← Projects</Link>
+            <StatusBadge label={project.status} />
+          </div>
+          <h1>{project.name}</h1>
+          <div className="sub">{project.revenueType ?? project.slug}</div>
+        </div>
+      </div>
+
+      {project.nextAction && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-body">
+            <div
+              style={{
+                borderLeft: "2px solid var(--accent)",
+                paddingLeft: 12,
+                background: "linear-gradient(90deg,var(--accent-soft),transparent 70%)",
+                borderRadius: "0 6px 6px 0",
+                padding: "6px 12px"
+              }}
+            >
+              {project.nextAction}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid-12">
+        <div className="span-8 vstack" style={{ gap: 16 }}>
+          <div className="card">
+            <div className="card-head"><div className="title">Approvals & blockers</div></div>
+            <div className="card-body flush">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Risk</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {project.approvals.map((a) => (
+                    <tr key={a.id}>
+                      <td><span className="tag">{a.type}</span></td>
+                      <td>
+                        <Link href={`/approvals/${a.id}` as Route} style={{ fontWeight: 500, color: "var(--text-0)" }}>
+                          {a.title}
+                        </Link>
+                      </td>
+                      <td><RiskBadge risk={a.riskLevel} /></td>
+                      <td><StatusBadge label={a.status} /></td>
+                    </tr>
+                  ))}
+                  {project.approvals.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="muted" style={{ padding: 18 }}>No approvals.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-head"><div className="title">Artifacts</div></div>
+            <div className="card-body">
+              <div className="vstack" style={{ gap: 8 }}>
+                {project.artifacts.map((art) => (
+                  <ArtifactLink
+                    key={art.id}
+                    title={art.title}
+                    path={art.path}
+                    restricted={art.restricted}
+                    commitSha={art.commitSha}
+                  />
+                ))}
+                {project.artifacts.length === 0 && <div className="muted">No artifacts.</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="span-4 vstack" style={{ gap: 16 }}>
+          <div className="card">
+            <div className="card-head"><div className="title">Summary</div></div>
+            <div className="card-body">
+              <div className="vstack" style={{ gap: 8, fontSize: 13 }}>
+                <div className="between">
+                  <span className="muted">Status</span>
+                  <span>{project.status.replace(/_/g, " ")}</span>
+                </div>
+                {project.blocker && (
+                  <div className="between">
+                    <span className="muted">Blocker</span>
+                    <span style={{ color: "var(--warn)" }}>{project.blocker}</span>
+                  </div>
+                )}
+                <div className="between">
+                  <span className="muted">Slug</span>
+                  <span className="mono" style={{ fontSize: 11.5 }}>{project.slug}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="card">
+            <div className="card-head"><div className="title">Timeline</div></div>
+            <div className="card-body">
+              <EventTimeline events={project.events.slice(0, 8)} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

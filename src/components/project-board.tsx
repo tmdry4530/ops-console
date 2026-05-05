@@ -1,18 +1,20 @@
 import type { Project } from "@prisma/client";
+import Link from "next/link";
 import { StatusBadge } from "./status-badge";
 
-export function ProjectBoard({ projects }: Readonly<{ projects: Project[] }>) {
+export function ProjectBoard({ projects }: { projects: Project[] }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {projects.map((project) => (
-        <div className="rounded-2xl border border-[var(--line)] bg-[#07110f] p-4" key={project.id}>
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-semibold">{project.name}</p>
-            <StatusBadge label={project.status} tone={project.status === "blocked" ? "danger" : "neutral"} />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 12 }}>
+      {projects.map((p) => (
+        <Link key={p.id} href={`/projects/${p.id}`} className="proj-card" style={{ textDecoration: "none" }}>
+          <div className="row1">
+            <StatusBadge label={p.revenueType ?? "project"} dot={false} />
+            <span className="right muted" style={{ fontSize: 11 }}>{p.status.replace(/_/g, " ")}</span>
           </div>
-          <p className="mt-2 text-sm text-[var(--muted)]">Next: {project.nextAction ?? "none"}</p>
-          {project.blocker ? <p className="mt-2 text-sm text-[var(--warning)]">Blocker: {project.blocker}</p> : null}
-        </div>
+          <div className="pname">{p.name}</div>
+          {p.blocker && <div className="blocker-msg">{p.blocker}</div>}
+          {p.nextAction && <div className="next-action">{p.nextAction}</div>}
+        </Link>
       ))}
     </div>
   );

@@ -1,14 +1,19 @@
-import { clsx } from "clsx";
+export type StatusKind = "ok" | "info" | "warn" | "danger" | "muted";
 
-const variants = {
-  ok: "border-[var(--ok)] text-[var(--ok)]",
-  warning: "border-[var(--warning)] text-[var(--warning)]",
-  danger: "border-[var(--danger)] text-[var(--danger)]",
-  neutral: "border-[var(--line)] text-[var(--muted)]"
-} as const;
+function statusKind(status: string): StatusKind {
+  if (status === "completed" || status === "approved" || status === "ok") return "ok";
+  if (status === "pending" || status === "needs_changes" || status === "warning") return "warn";
+  if (status === "manual_handoff" || status === "info") return "info";
+  if (status === "rejected" || status === "danger" || status === "critical") return "danger";
+  return "muted";
+}
 
-export type StatusTone = keyof typeof variants;
-
-export function StatusBadge({ label, tone = "neutral" }: Readonly<{ label: string; tone?: StatusTone }>) {
-  return <span className={clsx("rounded-full border px-2 py-1 text-xs uppercase tracking-[0.18em]", variants[tone])}>{label}</span>;
+export function StatusBadge({ label, kind, dot = true }: { label: string; kind?: StatusKind; dot?: boolean }) {
+  const k = kind ?? statusKind(label);
+  return (
+    <span className={`badge ${k}`}>
+      {dot && <span className="dot" />}
+      {label.replace(/_/g, " ")}
+    </span>
+  );
 }
