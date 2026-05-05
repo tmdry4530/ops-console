@@ -12,8 +12,8 @@ export default async function AgentsPage() {
     <>
       <div className="page-head">
         <div className="titles">
-          <h1>Agents</h1>
-          <div className="sub">{agents.length} agents · {healthy} healthy · {degraded} degraded</div>
+          <h1>에이전트</h1>
+          <div className="sub">총 {agents.length}개 · 정상 {healthy}개 · 주의 필요 {degraded}개</div>
         </div>
       </div>
       <AgentStatusGrid agents={agents} columns={3} />

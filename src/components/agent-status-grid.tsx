@@ -1,5 +1,6 @@
 import type { Agent } from "@prisma/client";
 import Link from "next/link";
+import { formatTimeKo, labelForHealth } from "@/lib/korean-labels";
 import { StatusBadge } from "./status-badge";
 
 export function AgentStatusGrid({ agents, columns = 3 }: { agents: Agent[]; columns?: number }) {
@@ -15,11 +16,11 @@ export function AgentStatusGrid({ agents, columns = 3 }: { agents: Agent[]; colu
             </div>
             <StatusBadge label={a.status} />
           </div>
-          <div className="muted" style={{ fontSize: 12, minHeight: 18 }}>{a.currentTask ?? "—"}</div>
+          <div className="muted" style={{ fontSize: 12, minHeight: 18 }}>{a.currentTask ?? "현재 작업 없음"}</div>
           <AgentHeartbeat status={a.status} health={a.health} heartbeatAt={a.heartbeatAt} />
           <div className="between" style={{ fontSize: 11, color: "var(--text-3)" }}>
-            <span>{a.health}</span>
-            <span>{a.heartbeatAt ? new Date(a.heartbeatAt).toLocaleTimeString() : "—"}</span>
+            <span>상태: {labelForHealth(a.health)}</span>
+            <span>최근 보고: {formatTimeKo(a.heartbeatAt)}</span>
           </div>
         </Link>
       ))}
@@ -36,5 +37,5 @@ function AgentHeartbeat({ status, health, heartbeatAt }: { status: string; healt
     const height = i < activeBars ? 78 : 34;
     return <span key={i} className={cls} style={{ height: `${height}%` }} />;
   });
-  return <div className="heartbeat" title={hasHeartbeat ? "heartbeat reported" : "missing heartbeat"}>{bars}</div>;
+  return <div className="heartbeat" title={hasHeartbeat ? "최근 상태 보고 있음" : "상태 보고 없음"}>{bars}</div>;
 }
