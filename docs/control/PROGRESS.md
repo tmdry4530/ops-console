@@ -72,6 +72,7 @@ Passed:
   - `ai.company.ops-console.live-status` writes safe launchd service status files under ignored `ops/status/*.json` every 60 seconds.
   - Ingestion now surfaces Company/Auth/Crypto gateways, crypto signal collector, and Ops Console app/proxy in the Agents tab.
   - Ingestion also reads shared Company data from `/Users/domclaw/dom-company` by default: docs index, decision log, SaaS revenue pipeline CSV, trading status, and trading reports.
+  - Added `ai.company.ops-console.command-worker`; it polls queued safe commands every 15 seconds and completed the existing `revenue_outreach` queued command. `immunefi_submit` remains `waiting_manual_handoff` by policy.
 
 ## File/folder organization pass
 

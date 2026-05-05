@@ -6,6 +6,7 @@ import { EventTimeline } from "@/components/event-timeline";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/lib/db";
+import { labelForApprovalType } from "@/lib/korean-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,8 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
       <div className="page-head">
         <div className="titles">
           <div className="row" style={{ gap: 8, marginBottom: 6 }}>
-            <Link href="/approvals" className="btn ghost sm">← Approvals</Link>
-            <span className="tag">{approval.type}</span>
+            <Link href="/approvals" className="btn ghost sm">← 승인 목록</Link>
+            <span className="tag">{labelForApprovalType(approval.type)}</span>
             <RiskBadge risk={approval.riskLevel} />
             <StatusBadge label={approval.status} />
           </div>
@@ -52,19 +53,19 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
 
       <div className="decision-grid">
         <div className="dec-cell">
-          <div className="label">Project</div>
+          <div className="label">프로젝트</div>
           <div className="value">{approval.project?.name ?? "—"}</div>
         </div>
         <div className="dec-cell">
-          <div className="label">Type</div>
-          <div className="value">{approval.type}</div>
+          <div className="label">유형</div>
+          <div className="value">{labelForApprovalType(approval.type)}</div>
         </div>
         <div className="dec-cell">
-          <div className="label">Risk</div>
+          <div className="label">위험도</div>
           <div className="value"><RiskBadge risk={approval.riskLevel} /></div>
         </div>
         <div className="dec-cell">
-          <div className="label">Manual report</div>
+          <div className="label">외부 제출 ID</div>
           <div className="value">{approval.manualReportId ?? "—"}</div>
         </div>
       </div>
@@ -73,8 +74,8 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
         <div className="span-8 vstack" style={{ gap: 16 }}>
           <div className="card">
             <div className="card-head">
-              <div className="title">Artifacts</div>
-              <div className="sub">· {artifacts.length} attached</div>
+              <div className="title">산출물</div>
+              <div className="sub">· {artifacts.length}개 연결됨</div>
             </div>
             <div className="card-body">
               <div className="vstack" style={{ gap: 8 }}>
@@ -87,7 +88,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
                     commitSha={art.commitSha}
                   />
                 ))}
-                {artifacts.length === 0 && <div className="muted">No artifacts attached.</div>}
+                {artifacts.length === 0 && <div className="muted">연결된 산출물이 없습니다.</div>}
               </div>
             </div>
           </div>
@@ -95,15 +96,15 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
           {approval.commandQueues.length > 0 && (
             <div className="card">
               <div className="card-head">
-                <div className="title">Command queue / handoff records</div>
+                <div className="title">명령 큐 / 수동 처리 기록</div>
               </div>
               <div className="card-body flush">
                 <table className="tbl">
                   <thead>
                     <tr>
-                      <th>Action</th>
-                      <th>Status</th>
-                      <th>Risk</th>
+                      <th>액션</th>
+                      <th>상태</th>
+                      <th>위험도</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -122,7 +123,7 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
 
           <div className="card">
             <div className="card-head">
-              <div className="title">Decision history</div>
+              <div className="title">결정 기록</div>
             </div>
             <div className="card-body">
               <EventTimeline events={events} />
@@ -133,27 +134,27 @@ export default async function ApprovalDetailPage({ params }: { params: Promise<{
         <div className="span-4 vstack" style={{ gap: 16 }}>
           <div className="card">
             <div className="card-head">
-              <div className="title">Risk profile</div>
+              <div className="title">위험도 프로필</div>
             </div>
             <div className="card-body">
               <div className="vstack" style={{ gap: 10 }}>
                 <div className="between">
-                  <span className="muted">Risk level</span>
+                  <span className="muted">위험도</span>
                   <RiskBadge risk={approval.riskLevel} />
                 </div>
                 <div className="between">
-                  <span className="muted">Status</span>
+                  <span className="muted">상태</span>
                   <StatusBadge label={approval.status} />
                 </div>
                 <div className="between">
-                  <span className="muted">Restricted artifacts</span>
+                  <span className="muted">제한 산출물</span>
                   <span>
                     {artifacts.filter((a) => a.restricted).length} / {artifacts.length}
                   </span>
                 </div>
                 <div className="between">
-                  <span className="muted">Auto-execute</span>
-                  <span style={{ color: "var(--danger)" }}>Blocked by policy</span>
+                  <span className="muted">자동 실행</span>
+                  <span style={{ color: "var(--success)" }}>안전 큐 액션만 허용</span>
                 </div>
               </div>
             </div>

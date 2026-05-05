@@ -16,6 +16,9 @@ describe("korean-friendly labels", () => {
     expect(labelForStatus("project")).toBe("프로젝트");
     expect(labelForStatus("manual outreach")).toBe("수동 아웃리치");
     expect(labelForStatus("waiting_approval")).toBe("승인 대기");
+    expect(labelForStatus("queued")).toBe("큐 대기");
+    expect(labelForStatus("executing")).toBe("실행 중");
+    expect(labelForStatus("waiting_manual_handoff")).toBe("수동 처리 대기");
     expect(labelForStatus("blocked")).toBe("차단됨");
     expect(labelForStatus("custom_state")).toBe("custom state");
   });
@@ -34,6 +37,10 @@ describe("korean-friendly labels", () => {
     expect(labelForRouteSegment("dashboard")).toBe("대시보드");
     expect(labelForRouteSegment("events")).toBe("이벤트");
     expect(labelForEventMessage("Status ingested: ops/status/auth-manager.json")).toBe("상태 수집됨: ops/status/auth-manager.json");
+    expect(labelForEventMessage("Command execution started: revenue_outreach")).toBe("명령 실행 시작: revenue_outreach");
+    expect(labelForEventMessage("Command execution completed: revenue_outreach")).toBe("명령 실행 완료: revenue_outreach");
+    expect(labelForEventMessage("Approval accepted: Approve revenue manual outreach")).toBe("승인됨: Approve revenue manual outreach");
+    expect(labelForEventMessage("Manual submission recorded: 2222222")).toBe("외부 제출 기록됨: 2222222");
   });
 
   it("formats timestamps for Korean operators", () => {

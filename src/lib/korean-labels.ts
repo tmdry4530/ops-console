@@ -7,8 +7,11 @@ const STATUS_LABELS: Record<string, string> = {
   idle: "대기 중",
   waiting_approval: "승인 대기",
   pending: "대기",
+  queued: "큐 대기",
+  executing: "실행 중",
   approved: "승인됨",
   approved_waiting_execution: "실행 대기",
+  waiting_manual_handoff: "수동 처리 대기",
   needs_changes: "수정 필요",
   manual_handoff: "수동 처리",
   completed: "완료",
@@ -78,6 +81,21 @@ export function labelForRouteSegment(segment: string): string {
 export function labelForEventMessage(message: string): string {
   if (message.startsWith("Status ingested: ")) {
     return message.replace("Status ingested: ", "상태 수집됨: ");
+  }
+  if (message.startsWith("Command execution started: ")) {
+    return message.replace("Command execution started: ", "명령 실행 시작: ");
+  }
+  if (message.startsWith("Command execution completed: ")) {
+    return message.replace("Command execution completed: ", "명령 실행 완료: ");
+  }
+  if (message.startsWith("Command blocked by manual handoff policy: ")) {
+    return message.replace("Command blocked by manual handoff policy: ", "수동 처리 정책으로 차단됨: ");
+  }
+  if (message.startsWith("Approval accepted: ")) {
+    return message.replace("Approval accepted: ", "승인됨: ");
+  }
+  if (message.startsWith("Manual submission recorded: ")) {
+    return message.replace("Manual submission recorded: ", "외부 제출 기록됨: ");
   }
   return message;
 }

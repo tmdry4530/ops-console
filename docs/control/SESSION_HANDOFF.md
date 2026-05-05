@@ -46,6 +46,7 @@ Current Mac mini deployment is live.
   - `ai.company.ops-console.app`
   - `ai.company.ops-console.proxy`
   - `ai.company.ops-console.live-status` updates safe local service status every 60 seconds and ingests it into the Ops Console database.
+  - `ai.company.ops-console.command-worker` polls queued safe commands every 15 seconds and executes the DB workflow (`queued → running → completed/failed`). Manual-handoff actions stay blocked.
 - Logs:
   - `~/Library/Logs/ops-console/app.out.log`
   - `~/Library/Logs/ops-console/app.err.log`
@@ -53,6 +54,8 @@ Current Mac mini deployment is live.
   - `~/Library/Logs/ops-console/proxy.err.log`
   - `~/Library/Logs/ops-console/live-status.out.log`
   - `~/Library/Logs/ops-console/live-status.err.log`
+  - `~/Library/Logs/ops-console/command-worker.out.log`
+  - `~/Library/Logs/ops-console/command-worker.err.log`
 - Health check: `bash /Users/domclaw/ops-console/ops/mac-mini/healthcheck.sh`
 - Data ingestion: local Ops Console `ops/status/*.json`, plus shared Company data under `/Users/domclaw/dom-company` by default (`docs/INDEX.md`, `hq/decisions/Company-Decision-Log.md`, `projects/saas/data/revenue_pipeline.csv`, `trading/status/*.md`, `trading/reports/*.md`). Override with `COMPANY_DATA_ROOT` if needed.
 - Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.

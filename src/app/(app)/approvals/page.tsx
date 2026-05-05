@@ -3,6 +3,7 @@ import Link from "next/link";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/lib/db";
+import { labelForApprovalType } from "@/lib/korean-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,8 @@ export default async function ApprovalsPage() {
     <>
       <div className="page-head">
         <div className="titles">
-          <h1>Approvals</h1>
-          <div className="sub">Operator decisions · risky actions split between approval and manual handoff.</div>
+          <h1>승인</h1>
+          <div className="sub">운영자 결정 · 안전 큐 실행과 수동 처리 액션을 분리합니다.</div>
         </div>
       </div>
 
@@ -44,7 +45,7 @@ export default async function ApprovalsPage() {
               />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="row" style={{ gap: 8, marginBottom: 4 }}>
-                  <span className="tag">{a.type}</span>
+                  <span className="tag">{labelForApprovalType(a.type)}</span>
                   <RiskBadge risk={a.riskLevel} />
                   <StatusBadge label={a.status} />
                 </div>
@@ -55,14 +56,14 @@ export default async function ApprovalsPage() {
                 </div>
               </div>
               <span className="btn ghost sm">
-                Open <span style={{ width: 12, height: 12, display: "inline-flex" }}>&rarr;</span>
+                열기 <span style={{ width: 12, height: 12, display: "inline-flex" }}>&rarr;</span>
               </span>
             </div>
           </Link>
         ))}
         {approvals.length === 0 && (
           <div className="card">
-            <div className="empty">No approvals found.</div>
+            <div className="empty">승인 항목이 없습니다.</div>
           </div>
         )}
       </div>

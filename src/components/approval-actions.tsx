@@ -41,11 +41,11 @@ export function ApprovalActions({ approvalId, status }: Props) {
         <div className="lhs">
           <span className="pulse" />
           <div>
-            <div className="db-title">Operator decision required</div>
+            <div className="db-title">운영자 승인 필요</div>
             <div className="db-sub">
-              {isPending && "Review the artifacts and context, then approve, reject, or request changes."}
-              {canManualSubmit && "Approval granted. Mark as manually submitted with the report ID."}
-              {status === "needs_changes" && "Reviewer requested changes. Address notes and re-submit."}
+              {isPending && "근거와 산출물을 검토한 뒤 승인, 거절, 수정 요청을 선택하세요."}
+              {canManualSubmit && "승인은 완료됐습니다. 외부 포털에서 직접 처리한 경우에만 외부 제출 ID를 기록하세요."}
+              {status === "needs_changes" && "수정 요청 상태입니다. 메모를 반영한 뒤 다시 제출하세요."}
             </div>
           </div>
         </div>
@@ -53,20 +53,20 @@ export function ApprovalActions({ approvalId, status }: Props) {
         {isPending && (
           <>
             <button className="btn ghost" disabled={busy !== null} onClick={() => setShowModal("reject")}>
-              Reject
+              거절
             </button>
             <button className="btn warn" disabled={busy !== null} onClick={() => setShowModal("request")}>
-              Request changes
+              수정 요청
             </button>
             <button className="btn primary lg" disabled={busy !== null} onClick={() => setShowModal("approve")}>
-              Approve
+              승인
             </button>
           </>
         )}
 
         {canManualSubmit && (
           <button className="btn primary lg" disabled={busy !== null} onClick={() => setShowModal("manual")}>
-            Mark manually submitted
+            외부 제출 완료 기록
           </button>
         )}
       </div>
@@ -75,19 +75,19 @@ export function ApprovalActions({ approvalId, status }: Props) {
         <div className="modal-bg" onClick={() => setShowModal(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h3>Approve & queue</h3>
-              <div className="sub">This will queue the action for safe execution.</div>
+              <h3>승인 및 실행 큐 등록</h3>
+              <div className="sub">허용된 안전 액션은 command worker가 자동 처리합니다. 수동 게이트 액션은 외부 제출/서명/2FA를 자동 실행하지 않습니다.</div>
             </div>
             <div className="modal-body">
               <div className="field">
-                <label>Decision note</label>
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note for audit trail..." />
+                <label>승인 메모</label>
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="감사 로그에 남길 메모, 선택 사항" />
               </div>
             </div>
             <div className="modal-foot">
-              <button className="btn ghost" onClick={() => setShowModal(null)}>Cancel</button>
+              <button className="btn ghost" onClick={() => setShowModal(null)}>취소</button>
               <button className="btn primary" disabled={busy !== null} onClick={() => submit("approve", { note })}>
-                {busy === "approve" ? "Approving…" : "Approve"}
+                {busy === "approve" ? "승인 중…" : "승인"}
               </button>
             </div>
           </div>
@@ -98,18 +98,18 @@ export function ApprovalActions({ approvalId, status }: Props) {
         <div className="modal-bg" onClick={() => setShowModal(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h3>Reject approval</h3>
+              <h3>승인 거절</h3>
             </div>
             <div className="modal-body">
               <div className="field">
-                <label>Reason (audit-visible)</label>
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why is this being rejected?" />
+                <label>사유 / 감사 로그 표시</label>
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="왜 거절하는지 적어주세요" />
               </div>
             </div>
             <div className="modal-foot">
-              <button className="btn ghost" onClick={() => setShowModal(null)}>Cancel</button>
+              <button className="btn ghost" onClick={() => setShowModal(null)}>취소</button>
               <button className="btn danger" disabled={busy !== null} onClick={() => submit("reject", { note })}>
-                {busy === "reject" ? "Rejecting…" : "Reject"}
+                {busy === "reject" ? "거절 중…" : "거절"}
               </button>
             </div>
           </div>
@@ -120,18 +120,18 @@ export function ApprovalActions({ approvalId, status }: Props) {
         <div className="modal-bg" onClick={() => setShowModal(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h3>Request changes</h3>
+              <h3>수정 요청</h3>
             </div>
             <div className="modal-body">
               <div className="field">
-                <label>Notes</label>
-                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="What needs to be changed?" />
+                <label>메모</label>
+                <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="무엇을 고쳐야 하는지 적어주세요" />
               </div>
             </div>
             <div className="modal-foot">
-              <button className="btn ghost" onClick={() => setShowModal(null)}>Cancel</button>
+              <button className="btn ghost" onClick={() => setShowModal(null)}>취소</button>
               <button className="btn warn" disabled={busy !== null} onClick={() => submit("request-changes", { note })}>
-                {busy === "request-changes" ? "Sending…" : "Send to author"}
+                {busy === "request-changes" ? "전송 중…" : "작성자에게 보내기"}
               </button>
             </div>
           </div>
@@ -142,24 +142,24 @@ export function ApprovalActions({ approvalId, status }: Props) {
         <div className="modal-bg" onClick={() => setShowModal(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h3>Mark manually submitted</h3>
-              <div className="sub">Records that you submitted to the external portal.</div>
+              <h3>외부 제출 완료 기록</h3>
+              <div className="sub">실제 외부 포털에서 직접 제출한 뒤 받은 리포트/티켓 ID만 기록합니다. 이 버튼은 외부 제출을 실행하지 않습니다.</div>
             </div>
             <div className="modal-body">
               <div className="field">
-                <label>External report ID</label>
-                <input className="mono" placeholder="IMM-26405-…" value={reportId} onChange={(e) => setReportId(e.target.value)} />
-                <div className="hint">Required. Stored as approval.manualReportId.</div>
+                <label>외부 제출 ID / 리포트 ID</label>
+                <input className="mono" placeholder="예: IMM-26405 또는 ticket-123" value={reportId} onChange={(e) => setReportId(e.target.value)} />
+                <div className="hint">필수. 실제 제출 후 받은 ID만 입력하세요. 저장 위치: approval.manualReportId</div>
               </div>
             </div>
             <div className="modal-foot">
-              <button className="btn ghost" onClick={() => setShowModal(null)}>Cancel</button>
+              <button className="btn ghost" onClick={() => setShowModal(null)}>취소</button>
               <button
                 className="btn primary"
                 disabled={busy !== null || reportId.trim().length < 3}
                 onClick={() => submit("manual-submit", { manualReportId: reportId.trim(), note })}
               >
-                {busy === "manual-submit" ? "Submitting…" : "Mark submitted"}
+                {busy === "manual-submit" ? "기록 중…" : "제출 완료로 기록"}
               </button>
             </div>
           </div>
