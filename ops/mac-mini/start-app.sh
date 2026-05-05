@@ -45,7 +45,7 @@ set -a
 # shellcheck disable=SC1091
 . ./.env
 set +a
-export HOSTNAME="0.0.0.0"
+export HOSTNAME="127.0.0.1"
 export PORT="3000"
 
 exec node .next/standalone/server.js

@@ -7,6 +7,8 @@ TARGET_PORT = int(os.getenv("OPS_CONSOLE_TARGET_PORT", "3000"))
 LISTEN_HOST = os.getenv("OPS_CONSOLE_PROXY_HOST", "127.0.0.1")
 LISTEN_PORT = int(os.getenv("OPS_CONSOLE_PROXY_PORT", "3010"))
 OPERATOR_EMAIL = os.getenv("OPS_CONSOLE_OPERATOR_EMAIL", "operator@example.invalid")
+_ALLOWED_CLIENTS = os.getenv("OPS_CONSOLE_ALLOWED_CLIENTS", "127.0.0.1,::1")
+ALLOWED_CLIENTS = {ip.strip() for ip in _ALLOWED_CLIENTS.split(",") if ip.strip()}
 
 
 class Proxy(BaseHTTPRequestHandler):
@@ -28,6 +30,16 @@ class Proxy(BaseHTTPRequestHandler):
         self.forward()
 
     def forward(self):
+        client_ip = self.client_address[0]
+        if ALLOWED_CLIENTS and client_ip not in ALLOWED_CLIENTS:
+            self.send_response(403, "Forbidden")
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", "9")
+            self.end_headers()
+            self.wfile.write(b"Forbidden")
+            print(f"blocked client {client_ip}", flush=True)
+            return
+
         length = int(self.headers.get("content-length") or 0)
         body = self.rfile.read(length) if length else None
         headers = {
@@ -63,7 +75,8 @@ class Proxy(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     print(
         f"Ops Console local proxy: http://{LISTEN_HOST}:{LISTEN_PORT} -> "
-        f"http://{TARGET_HOST}:{TARGET_PORT} with x-ops-operator-email",
+        f"http://{TARGET_HOST}:{TARGET_PORT} with x-ops-operator-email; "
+        f"allowed_clients={','.join(sorted(ALLOWED_CLIENTS)) or 'any'}",
         flush=True,
     )
     ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Proxy).serve_forever()

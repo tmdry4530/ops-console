@@ -20,11 +20,11 @@ Passed:
 
 - `pnpm install`
 - `pnpm prisma:generate`
-- `DATABASE_URL='postgresql://ops_console:ops_console@localhost:5432/ops_console?schema=public' pnpm prisma:validate`
+- `DATABASE_URL='[REDACTED_LOCAL_POSTGRES_URL]' pnpm prisma:validate`
 - `pnpm lint`
 - `pnpm typecheck`
 - `pnpm test`
-- `DATABASE_URL='postgresql://ops_console:ops_console@localhost:5432/ops_console?schema=public' pnpm build`
+- `DATABASE_URL='[REDACTED_LOCAL_POSTGRES_URL]' pnpm build`
 - `pnpm docker:config`
 - `docker compose --profile workers --profile proxy config`
 
@@ -61,9 +61,10 @@ Passed:
 - Applied Prisma migrations and seed against the live local Postgres instance.
 - Built the standalone Next.js production output.
 - Installed launchd agents:
-  - `ai.company.ops-console.app` runs the standalone Next.js app on `127.0.0.1:3000`/`0.0.0.0:3000`.
-  - `ai.company.ops-console.proxy` runs a loopback auth proxy on `127.0.0.1:3010`.
+  - `ai.company.ops-console.app` runs the standalone Next.js app on `127.0.0.1:3000` only.
+  - `ai.company.ops-console.proxy` listens on `0.0.0.0:3010` for LAN browser access and only allows `127.0.0.1`, `::1`, and `192.168.35.244`.
 - Runtime smoke passed:
   - `GET /api/health` returned OK.
   - `GET /dashboard` with operator header returned OK.
-  - `GET http://127.0.0.1:3010/dashboard` returned OK for browser use.
+  - `GET http://127.0.0.1:3010/dashboard` returned OK for local browser use.
+  - LAN URL is `http://192.168.35.36:3010/dashboard`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
