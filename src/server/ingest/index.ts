@@ -25,6 +25,7 @@ export type IngestionRunSummary = {
 type Candidate = {
   type: "status_file" | "csv" | "report" | "decision_log" | "other";
   filePath: string;
+  displayPath: string;
 };
 
 function riskLevel(value: string) {
@@ -64,15 +65,42 @@ async function filesInDirectory(directory: string, extension: string): Promise<s
   return entries.filter((entry) => entry.isFile() && entry.name.endsWith(extension)).map((entry) => path.join(directory, entry.name));
 }
 
-async function discoverCandidates(): Promise<Candidate[]> {
+function candidate(root: string, relativePath: string, type: Candidate["type"]): Candidate {
+  return {
+    type,
+    filePath: path.join(root, relativePath),
+    displayPath: root === "." ? relativePath : path.join(root, relativePath)
+  };
+}
+
+async function discoverCandidatesInRoot(root: string): Promise<Candidate[]> {
   const candidates: Candidate[] = [];
-  for (const filePath of await filesInDirectory("ops/status", ".json")) candidates.push({ type: "status_file", filePath });
-  if (await pathExists("projects/saas/data/revenue_pipeline.csv")) candidates.push({ type: "csv", filePath: "projects/saas/data/revenue_pipeline.csv" });
-  for (const filePath of await filesInDirectory("trading/status", ".md")) candidates.push({ type: "status_file", filePath });
-  for (const filePath of await filesInDirectory("trading/reports", ".md")) candidates.push({ type: "report", filePath });
-  if (await pathExists("hq/decisions/Company-Decision-Log.md")) candidates.push({ type: "decision_log", filePath: "hq/decisions/Company-Decision-Log.md" });
-  if (await pathExists("docs/INDEX.md")) candidates.push({ type: "other", filePath: "docs/INDEX.md" });
+  const statusDir = path.join(root, "ops/status");
+  for (const filePath of await filesInDirectory(statusDir, ".json")) {
+    candidates.push({ type: "status_file", filePath, displayPath: root === "." ? path.relative(root, filePath) : filePath });
+  }
+  if (await pathExists(path.join(root, "projects/saas/data/revenue_pipeline.csv"))) candidates.push(candidate(root, "projects/saas/data/revenue_pipeline.csv", "csv"));
+  for (const filePath of await filesInDirectory(path.join(root, "trading/status"), ".md")) {
+    candidates.push({ type: "status_file", filePath, displayPath: root === "." ? path.relative(root, filePath) : filePath });
+  }
+  for (const filePath of await filesInDirectory(path.join(root, "trading/reports"), ".md")) {
+    candidates.push({ type: "report", filePath, displayPath: root === "." ? path.relative(root, filePath) : filePath });
+  }
+  if (await pathExists(path.join(root, "hq/decisions/Company-Decision-Log.md"))) candidates.push(candidate(root, "hq/decisions/Company-Decision-Log.md", "decision_log"));
+  if (await pathExists(path.join(root, "docs/INDEX.md"))) candidates.push(candidate(root, "docs/INDEX.md", "other"));
   return candidates;
+}
+
+async function discoverCandidates(): Promise<Candidate[]> {
+  const roots = [".", process.env.COMPANY_DATA_ROOT ?? "/Users/domclaw/dom-company"];
+  const uniqueRoots = Array.from(new Set(roots.filter(Boolean)));
+  const candidates = (await Promise.all(uniqueRoots.map((root) => discoverCandidatesInRoot(root)))).flat();
+  const seen = new Set<string>();
+  return candidates.filter((item) => {
+    if (seen.has(item.filePath)) return false;
+    seen.add(item.filePath);
+    return true;
+  });
 }
 
 export async function runIngestionSkeleton(): Promise<IngestionRunSummary> {
@@ -124,7 +152,7 @@ export async function runIngestionSkeleton(): Promise<IngestionRunSummary> {
           create: { externalKey: `${status.task_id}:${approvalType(status.approval_type)}`, type: approvalType(status.approval_type), status: "pending", riskLevel: riskLevel(status.risk_level), title: `Approve ${status.task_id}`, summary: status.summary, projectId: project.id, taskId: task.id, requestedBy: agent.id }
         });
       }
-      await db.event.create({ data: { type: "status.ingested", severity: scan.restricted ? "critical" : "info", message: `Status ingested: ${candidate.filePath}`, agentId: agent.id, projectId: project.id, taskId: task.id } });
+      await db.event.create({ data: { type: "status.ingested", severity: scan.restricted ? "critical" : "info", message: `Status ingested: ${candidate.displayPath}`, agentId: agent.id, projectId: project.id, taskId: task.id } });
       changed += 1;
       continue;
     }
@@ -132,8 +160,8 @@ export async function runIngestionSkeleton(): Promise<IngestionRunSummary> {
     const artifact = await db.artifact.create({
       data: {
         type: candidate.type,
-        title: candidate.filePath,
-        path: candidate.filePath,
+        title: candidate.displayPath,
+        path: candidate.displayPath,
         contentHash: hash,
         restricted: scan.restricted,
         restrictionReason: scan.restricted ? "secret-like content detected" : null
@@ -144,7 +172,7 @@ export async function runIngestionSkeleton(): Promise<IngestionRunSummary> {
       data: {
         type: scan.restricted ? "artifact.restricted" : "artifact.ingested",
         severity: scan.restricted ? "critical" : "info",
-        message: scan.restricted ? `Restricted artifact detected: ${candidate.filePath}` : `Artifact ingested: ${candidate.filePath}`,
+        message: scan.restricted ? `Restricted artifact detected: ${candidate.displayPath}` : `Artifact ingested: ${candidate.displayPath}`,
         artifactId: artifact.id
       }
     });

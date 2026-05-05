@@ -54,6 +54,7 @@ Current Mac mini deployment is live.
   - `~/Library/Logs/ops-console/live-status.out.log`
   - `~/Library/Logs/ops-console/live-status.err.log`
 - Health check: `bash /Users/domclaw/ops-console/ops/mac-mini/healthcheck.sh`
+- Data ingestion: local Ops Console `ops/status/*.json`, plus shared Company data under `/Users/domclaw/dom-company` by default (`docs/INDEX.md`, `hq/decisions/Company-Decision-Log.md`, `projects/saas/data/revenue_pipeline.csv`, `trading/status/*.md`, `trading/reports/*.md`). Override with `COMPANY_DATA_ROOT` if needed.
 - Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.
 
 Operational caveat: this is private LAN deployment. The browser proxy listens on `0.0.0.0:3010` but only allows `127.0.0.1`, `::1`, and `192.168.35.244`; other client IPs receive `403 Forbidden`. Do not expose `3010` or `3000` publicly without replacing the header proxy with real auth/SSO and public hardening.
