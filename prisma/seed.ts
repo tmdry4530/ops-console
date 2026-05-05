@@ -1,0 +1,121 @@
+import { PrismaClient, type ApprovalType, type ArtifactType, type PolicyAction, type RiskLevel } from "@prisma/client";
+import { readFileSync } from "node:fs";
+import { contentHash } from "../src/server/ingest/hash";
+
+const prisma = new PrismaClient();
+
+const policies: Array<{ actionType: string; action: PolicyAction; riskLevel: RiskLevel; description: string }> = [
+  { actionType: "outreach", action: "require_approval", riskLevel: "medium", description: "Human approval required before external outreach." },
+  { actionType: "bounty_submission", action: "require_manual_handoff", riskLevel: "medium", description: "Bounty submissions require manual handoff and audited decision." },
+  { actionType: "wallet_kyc", action: "require_manual_handoff", riskLevel: "critical", description: "Wallet and KYC actions cannot be automated." },
+  { actionType: "live_trading", action: "block", riskLevel: "critical", description: "Live trading is blocked until separately authorized." },
+  { actionType: "paid_action", action: "require_approval", riskLevel: "high", description: "Paid actions require approval." },
+  { actionType: "deploy", action: "require_approval", riskLevel: "high", description: "Deployments require approval and audit trail." },
+  { actionType: "public_disclosure", action: "require_approval", riskLevel: "high", description: "Public disclosure requires approval." }
+];
+
+function safeHashForFile(filePath: string) {
+  try {
+    return contentHash(readFileSync(filePath));
+  } catch {
+    return contentHash(filePath);
+  }
+}
+
+async function main() {
+  const operator = await prisma.user.upsert({
+    where: { email: process.env.OPERATOR_BOOTSTRAP_EMAIL ?? "operator@example.invalid" },
+    update: {},
+    create: { email: process.env.OPERATOR_BOOTSTRAP_EMAIL ?? "operator@example.invalid", role: "operator" }
+  });
+
+  for (const policy of policies) {
+    await prisma.policy.upsert({ where: { actionType: policy.actionType }, update: policy, create: policy });
+  }
+
+  const bountyAgent = await prisma.agent.upsert({
+    where: { slug: "trading-bounty" },
+    update: { status: "waiting_approval", health: "ok", currentTask: "capyfi-oracle-report" },
+    create: { slug: "trading-bounty", name: "Trading Bounty Agent", status: "waiting_approval", health: "ok", currentTask: "capyfi-oracle-report" }
+  });
+
+  const bountyProject = await prisma.project.upsert({
+    where: { slug: "capyfi-bounty" },
+    update: { nextAction: "Manual Immunefi submission after logged-in scope confirmation" },
+    create: { slug: "capyfi-bounty", name: "CapyFi Bounty Submission", status: "active", nextAction: "Manual Immunefi submission after logged-in scope confirmation", blocker: "Logged-in Immunefi scope confirmation required" }
+  });
+
+  const bountyTask = await prisma.task.upsert({
+    where: { slug: "capyfi-oracle-report" },
+    update: { riskLevel: "medium", agentId: bountyAgent.id, projectId: bountyProject.id },
+    create: { slug: "capyfi-oracle-report", title: "CapyFi oracle report approval", status: "waiting_approval", riskLevel: "medium", agentId: bountyAgent.id, projectId: bountyProject.id }
+  });
+
+  const artifacts: Array<{ type: ArtifactType; title: string; path: string; commitSha: string }> = [
+    { type: "report", title: "CapyFi submission-ready report", path: "trading/reports/CapyFi-ChainlinkPriceOracle-StaleRound-Submission-Ready.md", commitSha: "9fba2ad" },
+    { type: "poc", title: "CapyFi stale round PoC", path: "trading/reports/CapyFi-ChainlinkPriceOracle-StaleRound-PoC.md", commitSha: "9fba2ad" }
+  ];
+
+  for (const artifact of artifacts) {
+    await prisma.artifact.upsert({
+      where: { contentHash: safeHashForFile(artifact.path) },
+      update: { path: artifact.path, projectId: bountyProject.id, taskId: bountyTask.id, agentId: bountyAgent.id, commitSha: artifact.commitSha },
+      create: { ...artifact, contentHash: safeHashForFile(artifact.path), projectId: bountyProject.id, taskId: bountyTask.id, agentId: bountyAgent.id }
+    });
+  }
+
+  await prisma.approval.upsert({
+    where: { externalKey: "capyfi-bounty-submission" },
+    update: { riskLevel: "medium", projectId: bountyProject.id, taskId: bountyTask.id },
+    create: {
+      externalKey: "capyfi-bounty-submission",
+      type: "bounty_submission" as ApprovalType,
+      status: "pending",
+      riskLevel: "medium",
+      title: "Approve CapyFi bounty submission",
+      summary: "Submission-ready report and PoC are prepared; manual Immunefi submission remains required.",
+      projectId: bountyProject.id,
+      taskId: bountyTask.id,
+      requestedBy: bountyAgent.id
+    }
+  });
+
+  const revenueProject = await prisma.project.upsert({
+    where: { slug: "revenue-manual-outreach" },
+    update: { nextAction: "Draft outreach requires operator review and manual send" },
+    create: { slug: "revenue-manual-outreach", name: "Revenue Manual Outreach", status: "active", revenueType: "manual_outreach", nextAction: "Draft outreach requires operator review and manual send" }
+  });
+
+  const revenueTask = await prisma.task.upsert({
+    where: { slug: "revenue-outreach-review" },
+    update: { projectId: revenueProject.id, riskLevel: "medium" },
+    create: { slug: "revenue-outreach-review", title: "Review manual outreach draft", status: "waiting_approval", riskLevel: "medium", projectId: revenueProject.id }
+  });
+
+  await prisma.approval.upsert({
+    where: { externalKey: "revenue-manual-outreach" },
+    update: { projectId: revenueProject.id, taskId: revenueTask.id },
+    create: {
+      externalKey: "revenue-manual-outreach",
+      type: "revenue_outreach" as ApprovalType,
+      status: "pending",
+      riskLevel: "medium",
+      title: "Approve revenue manual outreach",
+      summary: "Manual outreach path exists; external sends remain manual handoff only.",
+      projectId: revenueProject.id,
+      taskId: revenueTask.id
+    }
+  });
+
+  await prisma.event.create({
+    data: { type: "seed.completed", severity: "info", message: "Production-private seed completed.", actorId: operator.id, projectId: bountyProject.id, taskId: bountyTask.id }
+  });
+}
+
+main()
+  .then(async () => { await prisma.$disconnect(); })
+  .catch(async (error: unknown) => {
+    console.error(error);
+    await prisma.$disconnect();
+    process.exit(1);
+  });

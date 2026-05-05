@@ -1,0 +1,16 @@
+node_modules
+.next
+.env
+.env.local
+.env.production
+coverage
+.DS_Store
+*.log
+prisma/dev.db
+.omx/logs
+
+tsconfig.tsbuildinfo
+
+/backups
+
+.omx

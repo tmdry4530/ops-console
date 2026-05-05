@@ -1,0 +1,267 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AgentStatus {
+  idle
+  running
+  waiting_approval
+  blocked
+  failed
+  offline
+}
+
+enum HealthStatus {
+  ok
+  degraded
+  failing
+  unknown
+}
+
+enum ProjectStatus {
+  active
+  blocked
+  submitted
+  completed
+  archived
+}
+
+enum TaskStatus {
+  queued
+  running
+  waiting_approval
+  needs_changes
+  completed
+  failed
+}
+
+enum ApprovalStatus {
+  pending
+  approved_waiting_execution
+  executing
+  rejected
+  needs_changes
+  completed
+  manual_handoff
+}
+
+enum ApprovalType {
+  bounty_submission
+  revenue_outreach
+  wallet_kyc
+  live_trading
+  paid_action
+  deploy
+  public_disclosure
+  other
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  critical
+}
+
+enum ArtifactType {
+  report
+  poc
+  csv
+  decision_log
+  discord_thread
+  github_commit
+  cron_output
+  screenshot
+  config_backup
+  status_file
+  other
+}
+
+enum PolicyAction {
+  allow
+  require_approval
+  block
+  require_manual_handoff
+}
+
+enum EventSeverity {
+  info
+  warning
+  critical
+}
+
+enum CommandStatus {
+  queued
+  waiting_manual_handoff
+  running
+  completed
+  failed
+  cancelled
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  role      String    @default("operator")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sessions  Session[]
+  events    Event[]   @relation("EventActor")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Agent {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  status      AgentStatus  @default(idle)
+  health      HealthStatus @default(unknown)
+  heartbeatAt DateTime?
+  currentTask String?
+  metadata    Json         @default("{}")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tasks       Task[]
+  artifacts   Artifact[]
+  events      Event[]
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  name        String
+  status      ProjectStatus @default(active)
+  revenueType String?
+  nextAction  String?
+  blocker     String?
+  metadata    Json          @default("{}")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  tasks       Task[]
+  approvals   Approval[]
+  artifacts   Artifact[]
+  events      Event[]
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  status      TaskStatus @default(queued)
+  riskLevel   RiskLevel  @default(low)
+  summary     String?
+  blocker     String?
+  nextAction  String?
+  agentId     String?
+  projectId   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  agent       Agent?     @relation(fields: [agentId], references: [id])
+  project     Project?   @relation(fields: [projectId], references: [id])
+  approvals   Approval[]
+  artifacts   Artifact[]
+  events      Event[]
+}
+
+model Approval {
+  id              String         @id @default(cuid())
+  externalKey     String?        @unique
+  type            ApprovalType
+  status          ApprovalStatus @default(pending)
+  riskLevel       RiskLevel      @default(low)
+  title           String
+  summary         String
+  decisionNote    String?
+  manualReportId  String?
+  requestedBy     String?
+  projectId       String?
+  taskId          String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  project         Project?       @relation(fields: [projectId], references: [id])
+  task            Task?          @relation(fields: [taskId], references: [id])
+  commandQueues   CommandQueue[]
+  events          Event[]
+}
+
+model Artifact {
+  id                String       @id @default(cuid())
+  type              ArtifactType
+  title             String
+  path              String?
+  url               String?
+  repo              String?
+  commitSha         String?
+  contentHash       String       @unique
+  restricted        Boolean      @default(false)
+  restrictionReason String?
+  agentId           String?
+  projectId         String?
+  taskId            String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  agent             Agent?       @relation(fields: [agentId], references: [id])
+  project           Project?     @relation(fields: [projectId], references: [id])
+  task              Task?        @relation(fields: [taskId], references: [id])
+  events            Event[]
+}
+
+model CommandQueue {
+  id           String        @id @default(cuid())
+  actionType   String
+  status       CommandStatus @default(queued)
+  riskLevel    RiskLevel     @default(low)
+  payload      Json          @default("{}")
+  result       Json?
+  approvalId   String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  approval     Approval?     @relation(fields: [approvalId], references: [id])
+  events       Event[]
+}
+
+model Policy {
+  id          String       @id @default(cuid())
+  actionType  String       @unique
+  action      PolicyAction
+  riskLevel   RiskLevel    @default(low)
+  description String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Event {
+  id             String         @id @default(cuid())
+  type           String
+  severity       EventSeverity  @default(info)
+  message        String
+  metadata       Json           @default("{}")
+  actorId        String?
+  agentId        String?
+  projectId      String?
+  taskId         String?
+  approvalId     String?
+  artifactId     String?
+  commandQueueId String?
+  createdAt      DateTime       @default(now())
+  actor          User?          @relation("EventActor", fields: [actorId], references: [id])
+  agent          Agent?         @relation(fields: [agentId], references: [id])
+  project        Project?       @relation(fields: [projectId], references: [id])
+  task           Task?          @relation(fields: [taskId], references: [id])
+  approval       Approval?      @relation(fields: [approvalId], references: [id])
+  artifact       Artifact?      @relation(fields: [artifactId], references: [id])
+  commandQueue   CommandQueue?  @relation(fields: [commandQueueId], references: [id])
+}
