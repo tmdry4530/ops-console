@@ -76,3 +76,10 @@ Passed:
 - Updated `README.md` with documentation pointers.
 - Kept required root control documents in place because `AGENTS.md` and the production goal reference them directly.
 
+
+## Markdown folder organization pass
+
+- Moved root control markdown into `docs/control/`.
+- Moved operational runbooks into `docs/operations/`.
+- Kept only `README.md` and `AGENTS.md` at repo root for standard discovery and agent loading.
+- Updated `docs/INDEX.md` and `README.md` to point to the new locations.

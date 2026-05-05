@@ -8,7 +8,7 @@ Next recommended work:
 2. Fix any skeleton lint/type/build issues.
 3. Add auth gate and database-backed route loaders.
 4. Implement Bounty Submission Approval end-to-end.
-5. Run the full verification checklist from `TEST_PLAN.md`.
+5. Run the full verification checklist from `docs/control/TEST_PLAN.md`.
 
 ## Latest verification
 
@@ -59,3 +59,8 @@ Operational caveat: this is private LAN deployment. The browser proxy listens on
 
 Frontend UI guidance now lives at `docs/frontend/UI_GUIDE.md`, with `docs/INDEX.md` as the documentation index. Root control documents remain at the repo root intentionally for goal/agent compatibility.
 
+
+
+## Markdown organization update
+
+Root markdown is intentionally limited to `README.md` and `AGENTS.md`. Control docs now live in `docs/control/`; deployment, backup/restore, and security docs live in `docs/operations/`.

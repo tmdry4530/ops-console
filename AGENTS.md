@@ -31,5 +31,5 @@ Before completion, run or document blockers for:
 ## Work Rules
 - Keep diffs minimal.
 - Do not weaken tests to pass.
-- Record major decisions in DECISIONS.md.
-- Update PROGRESS.md and SESSION_HANDOFF.md before stopping.
+- Record major decisions in `docs/control/DECISIONS.md`.
+- Update `docs/control/PROGRESS.md` and `docs/control/SESSION_HANDOFF.md` before stopping.

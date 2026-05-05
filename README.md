@@ -23,8 +23,10 @@ The initial skeleton exposes `/dashboard` and `/api/health`. Feature implementat
 
 ## Documentation
 
+- Documentation index: `docs/INDEX.md`
 - Frontend UI composition and connection guide: `docs/frontend/UI_GUIDE.md`
-- Documentation index for operators and ingestion: `docs/INDEX.md`
+- Deployment and security runbooks: `docs/operations/`
+- Project control notes: `docs/control/`
 
 ## Verification
 

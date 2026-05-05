@@ -353,7 +353,7 @@ UI 요구사항:
 - `middleware.ts`
 - `src/lib/auth.ts`
 - `.env.example`
-- `SECURITY.md`
+- `docs/operations/SECURITY.md`
 
 ## 6. Bounty Submission Approval UI Flow
 
