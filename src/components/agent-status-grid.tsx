@@ -16,7 +16,7 @@ export function AgentStatusGrid({ agents, columns = 3 }: { agents: Agent[]; colu
             <StatusBadge label={a.status} />
           </div>
           <div className="muted" style={{ fontSize: 12, minHeight: 18 }}>{a.currentTask ?? "—"}</div>
-          <AgentHeartbeat status={a.status} health={a.health} />
+          <AgentHeartbeat status={a.status} health={a.health} heartbeatAt={a.heartbeatAt} />
           <div className="between" style={{ fontSize: 11, color: "var(--text-3)" }}>
             <span>{a.health}</span>
             <span>{a.heartbeatAt ? new Date(a.heartbeatAt).toLocaleTimeString() : "—"}</span>
@@ -27,13 +27,14 @@ export function AgentStatusGrid({ agents, columns = 3 }: { agents: Agent[]; colu
   );
 }
 
-function AgentHeartbeat({ status, health }: { status: string; health: string }) {
+function AgentHeartbeat({ status, health, heartbeatAt }: { status: string; health: string; heartbeatAt: Date | null }) {
+  const hasHeartbeat = Boolean(heartbeatAt);
+  const activeBars = status === "running" && hasHeartbeat ? 24 : status === "running" ? 8 : 0;
+  const warn = status === "blocked" || status === "failed" || health === "degraded" || health === "failing";
   const bars = Array.from({ length: 24 }, (_, i) => {
-    const v = Math.sin(i * 0.7 + i * 0.3) * 0.5 + 0.5;
-    let cls = "";
-    if (status === "running" && v > 0.4) cls = "on";
-    else if ((status === "blocked" || status === "failed" || health === "degraded" || health === "failing") && v > 0.5) cls = "warn-bar";
-    return <span key={i} className={cls} style={{ height: `${30 + v * 70}%` }} />;
+    const cls = warn && i >= 16 ? "warn-bar" : i < activeBars ? "on" : "";
+    const height = i < activeBars ? 78 : 34;
+    return <span key={i} className={cls} style={{ height: `${height}%` }} />;
   });
-  return <div className="heartbeat">{bars}</div>;
+  return <div className="heartbeat" title={hasHeartbeat ? "heartbeat reported" : "missing heartbeat"}>{bars}</div>;
 }

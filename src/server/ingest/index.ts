@@ -125,8 +125,8 @@ export async function runIngestionSkeleton(): Promise<IngestionRunSummary> {
       const status = parseStatusJson(content);
       const agent = await db.agent.upsert({
         where: { slug: status.agent_id },
-        update: { status: agentStatus(status.status), health: healthStatus(status.health_status), currentTask: status.task_id },
-        create: { slug: status.agent_id, name: status.agent_id, status: agentStatus(status.status), health: healthStatus(status.health_status), currentTask: status.task_id }
+        update: { status: agentStatus(status.status), health: healthStatus(status.health_status), currentTask: status.task_id, heartbeatAt: new Date(status.updated_at) },
+        create: { slug: status.agent_id, name: status.agent_id, status: agentStatus(status.status), health: healthStatus(status.health_status), currentTask: status.task_id, heartbeatAt: new Date(status.updated_at) }
       });
       const project = await db.project.upsert({
         where: { slug: status.project_id },
