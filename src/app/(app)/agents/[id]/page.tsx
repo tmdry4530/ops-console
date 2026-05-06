@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { AgentInstructionForm } from "@/components/agent-instruction-form";
 import { ArtifactLink } from "@/components/artifact-link";
 import { EventTimeline } from "@/components/event-timeline";
 import { MetricCard } from "@/components/metric-card";
@@ -11,10 +12,13 @@ export const dynamic = "force-dynamic";
 
 export default async function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const agent = await db.agent.findUnique({
-    where: { id },
-    include: { tasks: true, artifacts: true, events: { orderBy: { createdAt: "desc" }, take: 25 } }
-  });
+  const [agent, projects] = await Promise.all([
+    db.agent.findUnique({
+      where: { id },
+      include: { tasks: { orderBy: { updatedAt: "desc" } }, artifacts: true, events: { orderBy: { createdAt: "desc" }, take: 25 } }
+    }),
+    db.project.findMany({ orderBy: { updatedAt: "desc" }, select: { id: true, name: true, slug: true } })
+  ]);
   if (!agent) notFound();
 
   return (
@@ -44,6 +48,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
 
       <div className="grid-12">
         <div className="span-8 vstack" style={{ gap: 16 }}>
+          <AgentInstructionForm agentId={agent.id} projects={projects} />
           <div className="card">
             <div className="card-head"><div className="title">현재 작업</div></div>
             <div className="card-body">

@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requiresManualHandoff } from "@/lib/auth";
+import type { ProjectStatus } from "@prisma/client";
 
 export type CommandExecutionStatus = "completed" | "failed" | "skipped";
 
@@ -36,7 +37,7 @@ export type CommandExecutionPort = {
   failCommand(id: string, result: CommandExecutionResult): Promise<void>;
   completeApproval(id: string, result: CommandExecutionResult): Promise<void>;
   completeTask(id: string, result: CommandExecutionResult): Promise<void>;
-  updateProjectAfterCommand(id: string, result: CommandExecutionResult): Promise<void>;
+  updateProjectAfterCommand(id: string, actionType: string, result: CommandExecutionResult): Promise<void>;
   createCommandEvent(event: CommandExecutionEvent): Promise<void>;
 };
 
@@ -103,7 +104,7 @@ export async function processCommand(command: QueuedCommandRecord, port: Command
     await port.completeTask(payload.taskId, completed);
   }
   if (payload.projectId) {
-    await port.updateProjectAfterCommand(payload.projectId, completed);
+    await port.updateProjectAfterCommand(payload.projectId, command.actionType, completed);
   }
   await port.createCommandEvent({
     type: "command.completed",
@@ -133,6 +134,14 @@ export async function processNextQueuedCommand(port: CommandExecutionPort = pris
   return processCommand(command, port);
 }
 
+export function projectUpdateForCommand(actionType: string, executionResult: CommandExecutionResult): { status: ProjectStatus; blocker: null; nextAction: string } {
+  if (["revenue_outreach", "bounty_submission", "deploy", "public_disclosure"].includes(actionType)) {
+    return { status: "submitted", blocker: null, nextAction: `Command executed at ${executionResult.executedAt}` };
+  }
+
+  return { status: "active", blocker: null, nextAction: `Operator instruction completed at ${executionResult.executedAt}` };
+}
+
 export const prismaCommandExecutionPort: CommandExecutionPort = {
   async markCommandRunning(id) {
     await db.commandQueue.update({ where: { id }, data: { status: "running" } });
@@ -152,8 +161,8 @@ export const prismaCommandExecutionPort: CommandExecutionPort = {
   async completeTask(id, executionResult) {
     await db.task.update({ where: { id }, data: { status: "completed", blocker: null, nextAction: `Command executed at ${executionResult.executedAt}` } });
   },
-  async updateProjectAfterCommand(id, executionResult) {
-    await db.project.update({ where: { id }, data: { status: "submitted", blocker: null, nextAction: `Command executed at ${executionResult.executedAt}` } });
+  async updateProjectAfterCommand(id, actionType, result) {
+    await db.project.update({ where: { id }, data: projectUpdateForCommand(actionType, result) });
   },
   async createCommandEvent(event) {
     await db.event.create({

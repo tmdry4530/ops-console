@@ -97,6 +97,9 @@ export function labelForEventMessage(message: string): string {
   if (message.startsWith("Manual submission recorded: ")) {
     return message.replace("Manual submission recorded: ", "외부 제출 기록됨: ");
   }
+  if (message.startsWith("Operator instruction requested: ")) {
+    return message.replace("Operator instruction requested: ", "운영자 지시 등록됨: ");
+  }
   return message;
 }
 

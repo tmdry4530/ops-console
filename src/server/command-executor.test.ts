@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { processCommand, type CommandExecutionPort, type QueuedCommandRecord } from "./command-executor";
+import { processCommand, projectUpdateForCommand, type CommandExecutionPort, type QueuedCommandRecord } from "./command-executor";
 
 function makePort() {
   const calls: Array<[string, unknown?]> = [];
@@ -22,8 +22,8 @@ function makePort() {
     async completeTask(id, result) {
       calls.push(["completeTask", { id, result }]);
     },
-    async updateProjectAfterCommand(id, result) {
-      calls.push(["updateProjectAfterCommand", { id, result }]);
+    async updateProjectAfterCommand(id, actionType, result) {
+      calls.push(["updateProjectAfterCommand", { id, actionType, result }]);
     },
     async createCommandEvent(event) {
       calls.push(["createCommandEvent", event]);
@@ -79,5 +79,18 @@ describe("processCommand", () => {
 
     expect(result.status).toBe("failed");
     expect(calls.map(([name]) => name)).toEqual(["failCommand", "createCommandEvent"]);
+  });
+
+  it("keeps generic operator instruction projects active after completion", () => {
+    const update = projectUpdateForCommand("other", { status: "completed", executedAt: "2026-05-06T00:00:00.000Z", mode: "ops_console_worker" });
+
+    expect(update).toMatchObject({ status: "active", blocker: null });
+    expect(update.nextAction).toContain("Operator instruction completed");
+  });
+
+  it("marks revenue outreach projects submitted after completion", () => {
+    const update = projectUpdateForCommand("revenue_outreach", { status: "completed", executedAt: "2026-05-06T00:00:00.000Z", mode: "ops_console_worker" });
+
+    expect(update).toMatchObject({ status: "submitted", blocker: null });
   });
 });
