@@ -1,6 +1,7 @@
-import { PrismaClient, type ApprovalType, type ArtifactType, type PolicyAction, type RiskLevel } from "@prisma/client";
+import { PrismaClient, type ApprovalType, type ArtifactType, type PolicyAction, type RiskLevel, Prisma } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { contentHash } from "../src/server/ingest/hash";
+import { AGENT_CAPABILITY_SEEDS } from "../src/server/agent-capabilities";
 
 const prisma = new PrismaClient();
 
@@ -72,6 +73,42 @@ async function main() {
           focus: agent.focus,
           source: "dom-company"
         }
+      }
+    });
+  }
+
+  for (const capability of AGENT_CAPABILITY_SEEDS) {
+    const agent = await prisma.agent.findUnique({ where: { slug: capability.agentSlug }, select: { id: true } });
+    if (!agent) continue;
+    await prisma.agentCapability.upsert({
+      where: { agentId_capabilityKey: { agentId: agent.id, capabilityKey: capability.capabilityKey } },
+      update: {
+        inputSchema: capability.inputSchema as Prisma.InputJsonValue,
+        outputSchema: capability.outputSchema as Prisma.InputJsonValue,
+        allowedTools: capability.allowedTools,
+        maxRisk: capability.maxRisk,
+        expectedArtifactType: capability.expectedArtifactType,
+        successCriteria: capability.successCriteria,
+        failureModes: capability.failureModes,
+        rollbackOrManualHandoff: capability.rollbackOrManualHandoff,
+        requiresApproval: capability.requiresApproval,
+        avgCost: capability.avgCost,
+        avgDuration: capability.avgDuration
+      },
+      create: {
+        agentId: agent.id,
+        capabilityKey: capability.capabilityKey,
+        inputSchema: capability.inputSchema as Prisma.InputJsonValue,
+        outputSchema: capability.outputSchema as Prisma.InputJsonValue,
+        allowedTools: capability.allowedTools,
+        maxRisk: capability.maxRisk,
+        expectedArtifactType: capability.expectedArtifactType,
+        successCriteria: capability.successCriteria,
+        failureModes: capability.failureModes,
+        rollbackOrManualHandoff: capability.rollbackOrManualHandoff,
+        requiresApproval: capability.requiresApproval,
+        avgCost: capability.avgCost,
+        avgDuration: capability.avgDuration
       }
     });
   }

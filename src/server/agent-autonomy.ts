@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./department-adapters";
 import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, RiskLevel, TaskStatus } from "@prisma/client";
 
 export const AUTONOMOUS_WORK_AGENT_SLUGS = [
@@ -47,6 +48,7 @@ export type AutonomousTaskRunPlan = {
   taskNextAction?: string;
   approval?: AutonomousApprovalPlan;
   events: AutonomousEventPlan[];
+  adapterArtifact?: DepartmentAdapterRunPlan["artifact"];
 };
 
 export type AutonomousTaskRunResult = {
@@ -113,31 +115,32 @@ export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date
     };
   }
 
+  const adapterPlan = planDepartmentAdapterRun(task, now);
+  if (adapterPlan.kind === "requires_approval") {
+    return {
+      kind: "request_console_approval",
+      taskStatus: "waiting_approval",
+      agentStatus: "waiting_approval",
+      taskNextAction: "Ops Console 승인 대기 · Discord는 결과/상태 보고만 수행",
+      approval: {
+        type: "other",
+        status: "pending",
+        riskLevel: task.riskLevel,
+        title: `자율 작업 승인 필요 · ${task.agent.name}`,
+        summary: `자율 에이전트 어댑터가 승인이 필요한 작업을 감지했습니다.\n\n작업: ${task.title}\n요약: ${task.summary ?? "없음"}`,
+        requestedBy: "autonomous-agent-worker"
+      },
+      events: adapterPlan.events
+    };
+  }
+
   return {
     kind: "execute_safe_task",
     taskStatus: "completed",
     agentStatus: "idle",
     taskNextAction: `자율 작업 완료: ${executedAt}`,
-    events: [
-      {
-        type: "agent.autonomy.started",
-        severity: "info",
-        message: `Autonomous agent started task: ${task.agent.slug}`,
-        metadata: { ...baseMetadata, riskLevel: task.riskLevel }
-      },
-      {
-        type: "agent.autonomy.completed",
-        severity: "info",
-        message: `Autonomous agent completed task: ${task.agent.slug}`,
-        metadata: { ...baseMetadata, riskLevel: task.riskLevel }
-      },
-      {
-        type: "discord.report.queued",
-        severity: "info",
-        message: `Discord result report queued: ${task.agent.slug}`,
-        metadata: { ...baseMetadata, purpose: "result_report", approvalRequest: false }
-      }
-    ]
+    adapterArtifact: adapterPlan.artifact,
+    events: adapterPlan.events
   };
 }
 
@@ -220,17 +223,55 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
     return { status: "waiting_approval", taskId: task.id, agentSlug: task.agent.slug };
   }
 
-  await db.$transaction([
-    db.agent.update({ where: { id: task.agent.id }, data: { status: "running", currentTask: task.title } }),
-    ...plan.events.slice(0, 1).map((event) => db.event.create({
-      data: { ...event, agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id }
-    })),
-    db.task.update({ where: { id: task.id }, data: { status: plan.taskStatus, blocker: null, nextAction: plan.taskNextAction } }),
-    db.agent.update({ where: { id: task.agent.id }, data: { status: plan.agentStatus, currentTask: null } }),
-    ...plan.events.slice(1).map((event) => db.event.create({
-      data: { ...event, agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id }
-    }))
-  ]);
+  await db.$transaction(async (tx) => {
+    await tx.agent.update({ where: { id: task.agent!.id }, data: { status: "running", currentTask: task.title } });
+    await tx.event.create({
+      data: { ...plan.events[0], agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id }
+    });
+
+    const artifact = plan.adapterArtifact
+      ? await tx.artifact.upsert({
+          where: { contentHash: plan.adapterArtifact.contentHash },
+          update: {
+            title: plan.adapterArtifact.title,
+            path: plan.adapterArtifact.path,
+            type: plan.adapterArtifact.type,
+            restricted: plan.adapterArtifact.restricted,
+            restrictionReason: plan.adapterArtifact.restrictionReason ?? null,
+            agentId: task.agent!.id,
+            projectId: task.projectId ?? undefined,
+            taskId: task.id
+          },
+          create: {
+            type: plan.adapterArtifact.type,
+            title: plan.adapterArtifact.title,
+            path: plan.adapterArtifact.path,
+            contentHash: plan.adapterArtifact.contentHash,
+            restricted: plan.adapterArtifact.restricted,
+            restrictionReason: plan.adapterArtifact.restrictionReason ?? null,
+            agentId: task.agent!.id,
+            projectId: task.projectId ?? undefined,
+            taskId: task.id
+          },
+          select: { id: true }
+        })
+      : null;
+
+    await tx.task.update({ where: { id: task.id }, data: { status: plan.taskStatus, blocker: null, nextAction: plan.taskNextAction } });
+    await tx.agent.update({ where: { id: task.agent!.id }, data: { status: plan.agentStatus, currentTask: null } });
+    for (const event of plan.events.slice(1)) {
+      await tx.event.create({
+        data: {
+          ...event,
+          metadata: artifact ? { ...event.metadata, artifactId: artifact.id } : event.metadata,
+          agentId: task.agent!.id,
+          projectId: task.projectId ?? undefined,
+          taskId: task.id,
+          artifactId: artifact?.id
+        }
+      });
+    }
+  });
 
   const completedParentTaskIds = await completeFinishedHqParents(task.id, now);
 

@@ -16,9 +16,14 @@ describe("planAutonomousTaskRun", () => {
     expect(plan.kind).toBe("execute_safe_task");
     expect(plan.taskStatus).toBe("completed");
     expect(plan.agentStatus).toBe("idle");
+    expect(plan.adapterArtifact).toMatchObject({
+      type: "report",
+      path: "artifacts/agents/docs-agent/task_1-docs.update_proposal.md"
+    });
     expect(plan.events.map((event) => event.type)).toEqual([
-      "agent.autonomy.started",
-      "agent.autonomy.completed",
+      "agent.adapter.started",
+      "agent.adapter.artifact_created",
+      "agent.adapter.completed",
       "discord.report.queued"
     ]);
     expect(plan.events.find((event) => event.type === "discord.report.queued")?.metadata).toMatchObject({

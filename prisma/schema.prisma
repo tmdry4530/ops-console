@@ -134,9 +134,33 @@ model Agent {
   metadata    Json         @default("{}")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
-  tasks       Task[]
-  artifacts   Artifact[]
-  events      Event[]
+  tasks        Task[]
+  artifacts    Artifact[]
+  events       Event[]
+  capabilities AgentCapability[]
+}
+
+model AgentCapability {
+  id                      String       @id @default(cuid())
+  agentId                 String
+  capabilityKey           String
+  inputSchema             Json         @default("{}")
+  outputSchema            Json         @default("{}")
+  allowedTools            Json         @default("[]")
+  maxRisk                 RiskLevel    @default(low)
+  expectedArtifactType    ArtifactType @default(report)
+  successCriteria         Json         @default("[]")
+  failureModes            Json         @default("[]")
+  rollbackOrManualHandoff String
+  requiresApproval        Boolean      @default(false)
+  avgCost                 Float        @default(0)
+  avgDuration             Int          @default(0)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  agent                   Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, capabilityKey])
+  @@index([capabilityKey])
 }
 
 model Project {
