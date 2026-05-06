@@ -40,7 +40,7 @@ Current Mac mini deployment is live.
 
 - Repo path: `/Users/domclaw/ops-console`
 - Browser URL from Mac mini itself: `http://127.0.0.1:3010/dashboard`
-- LAN URL for allowlisted client `192.168.35.244`: `http://192.168.35.36:3010/dashboard`
+- LAN URL for allowlisted clients `192.168.35.244` and `192.168.0.31`: `http://192.168.35.36:3010/dashboard`
 - Direct app URL: `http://127.0.0.1:3000` with `x-ops-operator-email` header; app is loopback-only.
 - LaunchAgents:
   - `ai.company.ops-console.app`
@@ -60,7 +60,7 @@ Current Mac mini deployment is live.
 - Data ingestion: local Ops Console `ops/status/*.json`, plus shared Company data under `/Users/domclaw/dom-company` by default (`docs/INDEX.md`, `hq/decisions/Company-Decision-Log.md`, `projects/saas/data/revenue_pipeline.csv`, `trading/status/*.md`, `trading/reports/*.md`). Override with `COMPANY_DATA_ROOT` if needed.
 - Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.
 
-Operational caveat: this is private LAN deployment. The browser proxy listens on `0.0.0.0:3010` but only allows `127.0.0.1`, `::1`, and `192.168.35.244`; other client IPs receive `403 Forbidden`. Do not expose `3010` or `3000` publicly without replacing the header proxy with real auth/SSO and public hardening.
+Operational caveat: this is private LAN deployment. The browser proxy listens on `0.0.0.0:3010` but only allows `127.0.0.1`, `::1`, `192.168.35.244`, and `192.168.0.31`; other client IPs receive `403 Forbidden`. Do not expose `3010` or `3000` publicly without replacing the header proxy with real auth/SSO and public hardening.
 
 ## Documentation organization update
 

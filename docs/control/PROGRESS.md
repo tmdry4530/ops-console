@@ -62,7 +62,7 @@ Passed:
 - Built the standalone Next.js production output.
 - Installed launchd agents:
   - `ai.company.ops-console.app` runs the standalone Next.js app on `127.0.0.1:3000` only.
-  - `ai.company.ops-console.proxy` listens on `0.0.0.0:3010` for LAN browser access and only allows `127.0.0.1`, `::1`, and `192.168.35.244`.
+  - `ai.company.ops-console.proxy` listens on `0.0.0.0:3010` for LAN browser access and only allows `127.0.0.1`, `::1`, `192.168.35.244`, and `192.168.0.31`.
 - Runtime smoke passed:
   - `GET /api/health` returned OK.
   - `GET /dashboard` with operator header returned OK.
