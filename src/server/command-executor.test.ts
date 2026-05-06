@@ -77,6 +77,19 @@ describe("processCommand", () => {
     });
   });
 
+  it("refuses revenue outreach commands because external sends need manual handoff", async () => {
+    const { calls, port } = makePort();
+
+    const result = await processCommand({ ...queuedCommand, actionType: "revenue_outreach", riskLevel: "medium" }, port);
+
+    expect(result.status).toBe("failed");
+    expect(calls.map(([name]) => name)).toEqual(["failCommand", "createCommandEvent"]);
+    expect(calls[1]?.[1]).toMatchObject({
+      type: "command.blocked_manual_handoff",
+      metadata: { actionType: "revenue_outreach", riskLevel: "medium", reason: "manual_handoff_required" }
+    });
+  });
+
   it("refuses high-risk commands even from an allowlisted operator network", async () => {
     const { calls, port } = makePort();
 

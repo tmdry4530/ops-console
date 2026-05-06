@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-export const manualHandoffActionTypes = ["immunefi_submit", "kyc", "wallet_signature", "two_factor", "kakao_send", "instagram_send", "line_send"] as const;
+export const manualHandoffActionTypes = ["immunefi_submit", "revenue_outreach", "kyc", "wallet_signature", "two_factor", "kakao_send", "instagram_send", "line_send"] as const;
 
 export type ManualHandoffActionType = (typeof manualHandoffActionTypes)[number];
 
