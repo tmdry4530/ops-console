@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { planHqOrchestration } from "./hq-orchestration";
 import type { ApprovalType, RiskLevel } from "@prisma/client";
 
 export type AgentInstructionActionType =
@@ -129,11 +130,75 @@ export async function createAgentInstruction(agentId: string, body: unknown, act
   const instruction = typeof record.instruction === "string" ? record.instruction : "";
 
   const plan = planAgentInstruction({ agentId: agent.id, agentSlug: agent.slug, agentName: agent.name, instruction, actionType, riskLevel, projectId }, actorEmail);
+  const hqPlan = agent.slug === "hq-agent" ? planHqOrchestration(instruction, actorEmail) : null;
 
   return db.$transaction(async (tx) => {
-    const task = await tx.task.create({ data: plan.task });
+    const task = await tx.task.create({
+      data: hqPlan
+        ? {
+            ...plan.task,
+            summary: hqPlan.parentSummary
+          }
+        : plan.task
+    });
     const approval = await tx.approval.create({ data: { ...plan.approval, taskId: task.id } });
     const event = await tx.event.create({ data: { ...plan.event, taskId: task.id, approvalId: approval.id } });
-    return { task, approval, event };
+
+    if (!hqPlan) return { task, approval, event, delegations: [], discordReports: [] };
+
+    const targetAgents = await tx.agent.findMany({
+      where: { slug: { in: hqPlan.delegations.map((delegation) => delegation.agentSlug) } },
+      select: { id: true, slug: true }
+    });
+    const agentIdBySlug = new Map(targetAgents.map((target) => [target.slug, target.id]));
+
+    const delegations = [];
+    for (const delegation of hqPlan.delegations) {
+      const targetAgentId = agentIdBySlug.get(delegation.agentSlug);
+      if (!targetAgentId) continue;
+      const childSlug = `${hqPlan.runId}-${delegation.department}`;
+      const childTask = await tx.task.create({
+        data: {
+          slug: childSlug,
+          title: delegation.title,
+          status: delegation.status,
+          riskLevel: delegation.riskLevel,
+          summary: delegation.summary,
+          nextAction: delegation.nextAction,
+          agentId: targetAgentId,
+          projectId
+        }
+      });
+      await tx.event.create({
+        data: {
+          type: "hq.delegation.created",
+          severity: "info",
+          message: `HQ delegation created: ${delegation.department}`,
+          metadata: { orchestrationRunId: hqPlan.runId, parentTaskId: task.id, childTaskId: childTask.id, department: delegation.department },
+          agentId: targetAgentId,
+          projectId,
+          taskId: childTask.id
+        }
+      });
+      delegations.push(childTask);
+    }
+
+    const discordReports = [];
+    for (const report of hqPlan.discordReports) {
+      const reportEvent = await tx.event.create({
+        data: {
+          type: "discord.report.queued",
+          severity: "info",
+          message: `Discord report queued: ${report.channel}`,
+          metadata: { ...report.metadata, channel: report.channel, message: report.message },
+          agentId: agent.id,
+          projectId,
+          taskId: task.id
+        }
+      });
+      discordReports.push(reportEvent);
+    }
+
+    return { task, approval, event, delegations, discordReports };
   });
 }

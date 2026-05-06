@@ -6,6 +6,7 @@ import { EventTimeline } from "@/components/event-timeline";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/lib/db";
+import { HQ_DEPARTMENT_AGENTS } from "@/server/hq-orchestration";
 import { formatDateTimeKo, labelForHealth } from "@/lib/korean-labels";
 
 export const dynamic = "force-dynamic";
@@ -59,6 +60,35 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
           <div className="card">
+            <div className="card-head"><div className="title">작업 목록</div></div>
+            <div className="card-body flush">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>작업</th>
+                    <th>상태</th>
+                    <th>다음 액션</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {agent.tasks.slice(0, 8).map((task) => (
+                    <tr key={task.id}>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{task.title}</div>
+                        <div className="muted" style={{ fontSize: 11.5 }}>{task.slug}</div>
+                      </td>
+                      <td><StatusBadge label={task.status} /></td>
+                      <td className="muted">{task.nextAction ?? "-"}</td>
+                    </tr>
+                  ))}
+                  {agent.tasks.length === 0 && (
+                    <tr><td colSpan={3} className="empty">작업 없음</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="card">
             <div className="card-head"><div className="title">산출물</div></div>
             <div className="card-body">
               <div className="vstack" style={{ gap: 8 }}>
@@ -77,6 +107,23 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
         <div className="span-4 vstack" style={{ gap: 16 }}>
+          {agent.slug === "hq-agent" && (
+            <div className="card">
+              <div className="card-head"><div className="title">HQ 오케스트레이션</div></div>
+              <div className="card-body">
+                <div className="muted" style={{ fontSize: 12.5, marginBottom: 10 }}>
+                  HQ 지시는 역할 키워드에 맞춰 하위 에이전트 작업과 Discord 보고 대기 이벤트로 자동 분배됩니다.
+                </div>
+                <ul className="bare" style={{ fontSize: 12.5 }}>
+                  {HQ_DEPARTMENT_AGENTS.map((departmentAgent) => (
+                    <li key={departmentAgent.slug}>
+                      <span className="sev ok" /> {departmentAgent.department}: {departmentAgent.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
           <div className="card">
             <div className="card-head"><div className="title">권한</div></div>
             <div className="card-body">

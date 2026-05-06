@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const result = await createAgentInstruction(id, body, identity.email);
-    return NextResponse.json({ task: result.task, approval: result.approval });
+    return NextResponse.json({ task: result.task, approval: result.approval, delegations: result.delegations, discordReports: result.discordReports });
   } catch (error) {
     const message = error instanceof Error ? error.message : "instruction_failed";
     const status = message === "instruction_required" ? 400 : 500;

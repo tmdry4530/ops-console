@@ -100,6 +100,12 @@ export function labelForEventMessage(message: string): string {
   if (message.startsWith("Operator instruction requested: ")) {
     return message.replace("Operator instruction requested: ", "운영자 지시 등록됨: ");
   }
+  if (message.startsWith("HQ delegation created: ")) {
+    return message.replace("HQ delegation created: ", "HQ 하위작업 배정됨: ");
+  }
+  if (message.startsWith("Discord report queued: ")) {
+    return message.replace("Discord report queued: ", "Discord 보고 대기열 등록됨: ");
+  }
   return message;
 }
 

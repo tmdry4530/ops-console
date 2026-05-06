@@ -42,6 +42,8 @@ describe("korean-friendly labels", () => {
     expect(labelForEventMessage("Approval accepted: Approve revenue manual outreach")).toBe("승인됨: Approve revenue manual outreach");
     expect(labelForEventMessage("Manual submission recorded: 2222222")).toBe("외부 제출 기록됨: 2222222");
     expect(labelForEventMessage("Operator instruction requested: crypto-signal")).toBe("운영자 지시 등록됨: crypto-signal");
+    expect(labelForEventMessage("HQ delegation created: research")).toBe("HQ 하위작업 배정됨: research");
+    expect(labelForEventMessage("Discord report queued: hq")).toBe("Discord 보고 대기열 등록됨: hq");
   });
 
   it("formats timestamps for Korean operators", () => {
