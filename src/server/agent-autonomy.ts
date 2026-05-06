@@ -116,6 +116,10 @@ export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date
   }
 
   const adapterPlan = planDepartmentAdapterRun(task, now);
+  if (adapterPlan.kind === "unsupported_agent") {
+    return { kind: "skip", events: [] };
+  }
+
   if (adapterPlan.kind === "requires_approval") {
     return {
       kind: "request_console_approval",

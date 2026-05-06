@@ -87,6 +87,38 @@ export const AGENT_CAPABILITY_SEEDS: AgentCapabilitySeed[] = [
     keywords: ["dev", "개발", "코드", "lint", "typecheck", "test", "테스트", "검증", "patch"]
   },
   {
+    agentSlug: "content-agent",
+    capabilityKey: "content.outreach_approval_pack",
+    inputSchema: baseInputSchema,
+    outputSchema: artifactOutputSchema,
+    allowedTools: ["repo_read", "artifact_write", "approval_pack_draft"],
+    maxRisk: "medium",
+    expectedArtifactType: "report",
+    successCriteria: ["artifact_created", "manual_send_gate_included", "no_external_send"],
+    failureModes: ["missing_prospect_context", "unsafe_outreach_claim", "secret_like_content"],
+    rollbackOrManualHandoff: "Draft outreach approval packs only; never send external messages without operator approval and manual channel handling.",
+    requiresApproval: false,
+    avgCost: 0,
+    avgDuration: 45,
+    keywords: ["content", "outreach", "발송", "문구", "승인팩", "DM", "이메일", "메시지", "카카오", "인스타"]
+  },
+  {
+    agentSlug: "projects-agent",
+    capabilityKey: "projects.pipeline_ops",
+    inputSchema: baseInputSchema,
+    outputSchema: artifactOutputSchema,
+    allowedTools: ["repo_read", "artifact_write", "pipeline_triage"],
+    maxRisk: "medium",
+    expectedArtifactType: "report",
+    successCriteria: ["artifact_created", "pipeline_next_actions_listed", "manual_blockers_called_out"],
+    failureModes: ["missing_pipeline_context", "ambiguous_stage", "external_action_requested"],
+    rollbackOrManualHandoff: "Summarize pipeline status and blockers only; external outreach or CRM updates require operator review.",
+    requiresApproval: false,
+    avgCost: 0,
+    avgDuration: 45,
+    keywords: ["projects", "pipeline", "파이프라인", "운영표", "next_action", "reply_status", "파일럿", "prospect", "후보"]
+  },
+  {
     agentSlug: "main-agent",
     capabilityKey: "main.task_triage",
     inputSchema: baseInputSchema,

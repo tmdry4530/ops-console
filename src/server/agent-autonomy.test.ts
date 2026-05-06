@@ -32,6 +32,30 @@ describe("planAutonomousTaskRun", () => {
     });
   });
 
+  it("executes revenue-facing work agents with configured capability contracts", () => {
+    const plan = planAutonomousTaskRun(
+      {
+        ...safeTask,
+        id: "task_projects",
+        title: "SaaS 수익 파이프라인 운영표 정리",
+        summary: "projects-agent가 revenue pipeline next action을 정리한다.",
+        agent: { id: "agent_projects", slug: "projects-agent", name: "Projects Agent" }
+      },
+      new Date("2026-05-06T00:00:00.000Z")
+    );
+
+    expect(plan.kind).toBe("execute_safe_task");
+    expect(plan.adapterArtifact).toMatchObject({
+      path: "artifacts/agents/projects-agent/task_projects-projects.pipeline_ops.md"
+    });
+    expect(plan.events.map((event) => event.type)).toEqual([
+      "agent.adapter.started",
+      "agent.adapter.artifact_created",
+      "agent.adapter.completed",
+      "discord.report.queued"
+    ]);
+  });
+
   it("routes high-risk autonomous work to the Ops Console approval inbox", () => {
     const plan = planAutonomousTaskRun({ ...safeTask, riskLevel: "high", title: "프로덕션 배포" }, new Date("2026-05-06T00:00:00.000Z"));
 

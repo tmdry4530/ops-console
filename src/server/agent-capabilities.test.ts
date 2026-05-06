@@ -21,6 +21,21 @@ describe("agent capability registry", () => {
     });
   });
 
+  it("defines safe execution contracts for revenue-facing department adapters", () => {
+    expect(capabilitySeedsForAgent("content-agent")).toContainEqual(expect.objectContaining({
+      capabilityKey: "content.outreach_approval_pack",
+      expectedArtifactType: "report",
+      maxRisk: "medium",
+      requiresApproval: false
+    }));
+    expect(capabilitySeedsForAgent("projects-agent")).toContainEqual(expect.objectContaining({
+      capabilityKey: "projects.pipeline_ops",
+      expectedArtifactType: "report",
+      maxRisk: "medium",
+      requiresApproval: false
+    }));
+  });
+
   it("selects the narrowest capability for a task instead of broad fan-out", () => {
     expect(selectCapabilityForTask("docs-agent", "System-Feedback.md 기준으로 docs/INDEX.md와 log.md 업데이트 proposal 작성")).toMatchObject({
       capabilityKey: "docs.update_proposal"

@@ -76,6 +76,14 @@ function outputForCapability(capabilityKey: string, task: DepartmentAdapterTask,
     return `${header}\n## Validation Commands\n\n- pnpm lint\n- pnpm typecheck\n- pnpm test\n- pnpm build\n\n## Failure Handling\n\n- Preserve failing command output in the artifact.\n- Do not hide failed tests.\n- Deployment or destructive commands require Ops Console approval.\n`;
   }
 
+  if (capabilityKey === "content.outreach_approval_pack") {
+    return `${header}\n## Outreach Approval Pack Checklist\n\n- Refresh prospect-specific opening line from approved public context.\n- Keep the offer to manual 1:1 review/diagnosis; do not claim guaranteed revenue.\n- Include a clear operator approval gate before any external send.\n- Do not send Kakao/Instagram/LINE/email messages automatically.\n\n## Proposed Next Action\n\nPrepare an approval-ready draft bundle and mark all external sends as manual-only.\n`;
+  }
+
+  if (capabilityKey === "projects.pipeline_ops") {
+    return `${header}\n## Pipeline Operations Checklist\n\n- Review stage, reply_status, owner, and next_action for each prospect.\n- Separate internal cleanup from external/manual outreach.\n- Flag stale A-group items and identify B-group preparation needs.\n- Keep CSV writes as a proposal unless explicitly approved.\n\n## Proposed Next Action\n\nProduce a pipeline status artifact with blockers, owner, and next manual gate.\n`;
+  }
+
   return `${header}\n## Triage Checklist\n\n- Extract owner, blocker, and next action.\n- Flag stale running tasks.\n- Create follow-up tasks only when ownership is clear.\n`;
 }
 
