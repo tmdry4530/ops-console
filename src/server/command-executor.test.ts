@@ -25,6 +25,10 @@ function makePort() {
     async updateProjectAfterCommand(id, actionType, result) {
       calls.push(["updateProjectAfterCommand", { id, actionType, result }]);
     },
+    async activateHqDelegations(parentTaskId, result) {
+      calls.push(["activateHqDelegations", { parentTaskId, result }]);
+      return 0;
+    },
     async createCommandEvent(event) {
       calls.push(["createCommandEvent", event]);
     }
@@ -54,6 +58,7 @@ describe("processCommand", () => {
       "completeCommand",
       "completeApproval",
       "completeTask",
+      "activateHqDelegations",
       "updateProjectAfterCommand",
       "createCommandEvent"
     ]);

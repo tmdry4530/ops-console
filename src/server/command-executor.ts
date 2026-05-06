@@ -38,6 +38,7 @@ export type CommandExecutionPort = {
   completeApproval(id: string, result: CommandExecutionResult): Promise<void>;
   completeTask(id: string, result: CommandExecutionResult): Promise<void>;
   updateProjectAfterCommand(id: string, actionType: string, result: CommandExecutionResult): Promise<void>;
+  activateHqDelegations(parentTaskId: string, result: CommandExecutionResult): Promise<number>;
   createCommandEvent(event: CommandExecutionEvent): Promise<void>;
 };
 
@@ -59,6 +60,10 @@ function readPayload(payload: unknown): CommandPayload {
 
 function result(status: CommandExecutionStatus, reason?: string): CommandExecutionResult {
   return { status, reason, executedAt: new Date().toISOString(), mode: "ops_console_worker" };
+}
+
+function isMetadataRecord(metadata: unknown): metadata is Record<string, unknown> {
+  return Boolean(metadata) && typeof metadata === "object" && !Array.isArray(metadata);
 }
 
 export async function processCommand(command: QueuedCommandRecord, port: CommandExecutionPort): Promise<CommandExecutionResult> {
@@ -102,6 +107,19 @@ export async function processCommand(command: QueuedCommandRecord, port: Command
   }
   if (payload.taskId) {
     await port.completeTask(payload.taskId, completed);
+    const activatedDelegations = await port.activateHqDelegations(payload.taskId, completed);
+    if (activatedDelegations > 0) {
+      await port.createCommandEvent({
+        type: "hq.delegation.activated",
+        severity: "info",
+        message: `HQ delegated tasks activated: ${activatedDelegations}`,
+        commandQueueId: command.id,
+        approvalId: command.approvalId,
+        projectId: payload.projectId,
+        taskId: payload.taskId,
+        metadata: { activatedDelegations }
+      });
+    }
   }
   if (payload.projectId) {
     await port.updateProjectAfterCommand(payload.projectId, command.actionType, completed);
@@ -163,6 +181,69 @@ export const prismaCommandExecutionPort: CommandExecutionPort = {
   },
   async updateProjectAfterCommand(id, actionType, result) {
     await db.project.update({ where: { id }, data: projectUpdateForCommand(actionType, result) });
+  },
+  async activateHqDelegations(parentTaskId, executionResult) {
+    const parentTask = await db.task.findUnique({
+      where: { id: parentTaskId },
+      select: { id: true, agentId: true, agent: { select: { slug: true } }, summary: true }
+    });
+    if (parentTask?.agent?.slug !== "hq-agent" || !parentTask.summary?.startsWith("HQ 오케스트레이션:")) {
+      return 0;
+    }
+
+    const delegationEvents = await db.event.findMany({
+      where: { type: "hq.delegation.created" },
+      select: { metadata: true }
+    });
+    const childTaskIds = delegationEvents
+      .map((event) => event.metadata as unknown)
+      .filter(isMetadataRecord)
+      .filter((metadata) => metadata.parentTaskId === parentTaskId && typeof metadata.childTaskId === "string")
+      .map((metadata) => metadata.childTaskId as string);
+
+    if (childTaskIds.length === 0) {
+      return 0;
+    }
+
+    const childTasks = await db.task.findMany({
+      where: { id: { in: childTaskIds } },
+      select: { id: true, title: true, agentId: true }
+    });
+
+    await db.$transaction([
+      db.task.update({
+        where: { id: parentTaskId },
+        data: { status: "running", blocker: null, nextAction: `HQ delegated ${childTasks.length} subtasks at ${executionResult.executedAt}` }
+      }),
+      ...(parentTask.agentId
+        ? [db.agent.update({
+            where: { id: parentTask.agentId },
+            data: { status: "running", currentTask: "HQ 오케스트레이션 진행 중" }
+          })]
+        : []),
+      db.task.updateMany({
+        where: { id: { in: childTaskIds }, status: "queued" },
+        data: { status: "running", blocker: null, nextAction: "하위 에이전트 실행 어댑터/산출물 보고 대기" }
+      }),
+      ...childTasks
+        .filter((task) => task.agentId)
+        .map((task) => db.agent.update({
+          where: { id: task.agentId! },
+          data: { status: "running", currentTask: task.title }
+        })),
+      ...childTasks.map((task) => db.event.create({
+        data: {
+          type: "hq.delegation.started",
+          severity: "info",
+          message: `HQ delegated task started: ${task.title}`,
+          taskId: task.id,
+          agentId: task.agentId ?? undefined,
+          metadata: { parentTaskId, executedAt: executionResult.executedAt }
+        }
+      }))
+    ]);
+
+    return childTasks.length;
   },
   async createCommandEvent(event) {
     await db.event.create({
