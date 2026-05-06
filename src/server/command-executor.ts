@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requiresManualHandoff } from "@/lib/auth";
+import { evaluateExternalSendPermission } from "./external-send-policy";
 import type { ProjectStatus } from "@prisma/client";
 
 export type CommandExecutionStatus = "completed" | "failed" | "skipped";
@@ -8,7 +9,7 @@ export type CommandExecutionResult = {
   status: CommandExecutionStatus;
   reason?: string;
   executedAt: string;
-  mode?: "ops_console_worker";
+  mode?: "ops_console_worker" | "external_send_dry_run";
 };
 
 export type QueuedCommandRecord = {
@@ -58,8 +59,8 @@ function readPayload(payload: unknown): CommandPayload {
   return { projectId: null, taskId: null };
 }
 
-function result(status: CommandExecutionStatus, reason?: string): CommandExecutionResult {
-  return { status, reason, executedAt: new Date().toISOString(), mode: "ops_console_worker" };
+function result(status: CommandExecutionStatus, reason?: string, mode: CommandExecutionResult["mode"] = "ops_console_worker"): CommandExecutionResult {
+  return { status, reason, executedAt: new Date().toISOString(), mode };
 }
 
 function isMetadataRecord(metadata: unknown): metadata is Record<string, unknown> {
@@ -68,6 +69,79 @@ function isMetadataRecord(metadata: unknown): metadata is Record<string, unknown
 
 export async function processCommand(command: QueuedCommandRecord, port: CommandExecutionPort): Promise<CommandExecutionResult> {
   const payload = readPayload(command.payload);
+
+  if (command.actionType === "revenue_outreach" && !requiresManualHandoff(command.actionType, command.riskLevel)) {
+    const externalSend = evaluateExternalSendPermission({ actionType: command.actionType, riskLevel: command.riskLevel, payload: command.payload });
+    if (!externalSend.allowed) {
+      const failed = result("failed", externalSend.reason);
+      await port.failCommand(command.id, failed);
+      await port.createCommandEvent({
+        type: "external_send.blocked",
+        severity: "warning",
+        message: `External send blocked: ${externalSend.reason}`,
+        commandQueueId: command.id,
+        approvalId: command.approvalId,
+        projectId: payload.projectId,
+        taskId: payload.taskId,
+        metadata: { actionType: command.actionType, riskLevel: command.riskLevel, reason: failed.reason ?? null }
+      });
+      return failed;
+    }
+
+    await port.markCommandRunning(command.id);
+    if (command.approvalId) {
+      await port.markApprovalExecuting(command.approvalId);
+    }
+    await port.createCommandEvent({
+      type: externalSend.mode === "dry_run" ? "external_send.dry_run_started" : "external_send.started",
+      severity: "info",
+      message: `External send started: ${externalSend.channel}/${externalSend.recipientBatchId}`,
+      commandQueueId: command.id,
+      approvalId: command.approvalId,
+      projectId: payload.projectId,
+      taskId: payload.taskId,
+      metadata: {
+        actionType: command.actionType,
+        riskLevel: command.riskLevel,
+        channel: externalSend.channel,
+        recipientBatchId: externalSend.recipientBatchId,
+        draftArtifactId: externalSend.draftArtifactId,
+        idempotencyKey: externalSend.idempotencyKey,
+        dryRun: externalSend.mode === "dry_run"
+      }
+    });
+
+    const completed = result("completed", externalSend.mode === "dry_run" ? "dry_run_no_external_message_sent" : undefined, externalSend.mode === "dry_run" ? "external_send_dry_run" : "ops_console_worker");
+    await port.completeCommand(command.id, completed);
+    if (command.approvalId) {
+      await port.completeApproval(command.approvalId, completed);
+    }
+    if (payload.taskId) {
+      await port.completeTask(payload.taskId, completed);
+    }
+    if (payload.projectId) {
+      await port.updateProjectAfterCommand(payload.projectId, command.actionType, completed);
+    }
+    await port.createCommandEvent({
+      type: externalSend.mode === "dry_run" ? "external_send.dry_run_completed" : "external_send.completed",
+      severity: "info",
+      message: `External send completed: ${externalSend.channel}/${externalSend.recipientBatchId}`,
+      commandQueueId: command.id,
+      approvalId: command.approvalId,
+      projectId: payload.projectId,
+      taskId: payload.taskId,
+      metadata: {
+        actionType: command.actionType,
+        riskLevel: command.riskLevel,
+        channel: externalSend.channel,
+        recipientBatchId: externalSend.recipientBatchId,
+        idempotencyKey: externalSend.idempotencyKey,
+        dryRun: externalSend.mode === "dry_run",
+        mode: completed.mode ?? null
+      }
+    });
+    return completed;
+  }
 
   if (requiresManualHandoff(command.actionType, command.riskLevel)) {
     const failed = result("failed", "manual_handoff_required");

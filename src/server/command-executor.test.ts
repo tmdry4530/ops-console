@@ -1,5 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { processCommand, projectUpdateForCommand, type CommandExecutionPort, type QueuedCommandRecord } from "./command-executor";
+
+const originalExternalSendEnabled = process.env.OPS_AGENT_EXTERNAL_SEND_ENABLED;
+const originalExternalSendMode = process.env.OPS_AGENT_EXTERNAL_SEND_MODE;
+
+afterEach(() => {
+  if (originalExternalSendEnabled === undefined) delete process.env.OPS_AGENT_EXTERNAL_SEND_ENABLED;
+  else process.env.OPS_AGENT_EXTERNAL_SEND_ENABLED = originalExternalSendEnabled;
+  if (originalExternalSendMode === undefined) delete process.env.OPS_AGENT_EXTERNAL_SEND_MODE;
+  else process.env.OPS_AGENT_EXTERNAL_SEND_MODE = originalExternalSendMode;
+});
 
 function makePort() {
   const calls: Array<[string, unknown?]> = [];
@@ -77,7 +87,8 @@ describe("processCommand", () => {
     });
   });
 
-  it("refuses revenue outreach commands because external sends need manual handoff", async () => {
+  it("refuses revenue outreach commands because external sends need manual handoff unless enabled", async () => {
+    process.env.OPS_AGENT_EXTERNAL_SEND_ENABLED = "false";
     const { calls, port } = makePort();
 
     const result = await processCommand({ ...queuedCommand, actionType: "revenue_outreach", riskLevel: "medium" }, port);
@@ -88,6 +99,55 @@ describe("processCommand", () => {
       type: "command.blocked_manual_handoff",
       metadata: { actionType: "revenue_outreach", riskLevel: "medium", reason: "manual_handoff_required" }
     });
+  });
+
+  it("blocks enabled revenue outreach commands without a complete send plan", async () => {
+    process.env.OPS_AGENT_EXTERNAL_SEND_ENABLED = "true";
+    const { calls, port } = makePort();
+
+    const result = await processCommand({ ...queuedCommand, actionType: "revenue_outreach", riskLevel: "medium" }, port);
+
+    expect(result).toMatchObject({ status: "failed", reason: "external_send_plan_required" });
+    expect(calls.map(([name]) => name)).toEqual(["failCommand", "createCommandEvent"]);
+    expect(calls[1]?.[1]).toMatchObject({
+      type: "external_send.blocked",
+      metadata: { actionType: "revenue_outreach", riskLevel: "medium", reason: "external_send_plan_required" }
+    });
+  });
+
+  it("runs enabled revenue outreach as dry-run when a complete send plan exists", async () => {
+    process.env.OPS_AGENT_EXTERNAL_SEND_ENABLED = "true";
+    process.env.OPS_AGENT_EXTERNAL_SEND_MODE = "dry_run";
+    const { calls, port } = makePort();
+
+    const result = await processCommand({
+      ...queuedCommand,
+      actionType: "revenue_outreach",
+      riskLevel: "medium",
+      payload: {
+        projectId: "project_1",
+        taskId: "task_1",
+        externalSendAuthorized: true,
+        channel: "email",
+        recipientBatchId: "agroup-20260506",
+        draftArtifactId: "artifact_1",
+        idempotencyKey: "send-agroup-20260506"
+      }
+    }, port);
+
+    expect(result).toMatchObject({ status: "completed", reason: "dry_run_no_external_message_sent", mode: "external_send_dry_run" });
+    expect(calls.map(([name]) => name)).toEqual([
+      "markCommandRunning",
+      "markApprovalExecuting",
+      "createCommandEvent",
+      "completeCommand",
+      "completeApproval",
+      "completeTask",
+      "updateProjectAfterCommand",
+      "createCommandEvent"
+    ]);
+    expect(calls[2]?.[1]).toMatchObject({ type: "external_send.dry_run_started" });
+    expect(calls[7]?.[1]).toMatchObject({ type: "external_send.dry_run_completed" });
   });
 
   it("refuses high-risk commands even from an allowlisted operator network", async () => {
