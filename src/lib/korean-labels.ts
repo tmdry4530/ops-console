@@ -106,6 +106,21 @@ export function labelForEventMessage(message: string): string {
   if (message.startsWith("Discord report queued: ")) {
     return message.replace("Discord report queued: ", "Discord 보고 대기열 등록됨: ");
   }
+  if (message.startsWith("Autonomous agent started task: ")) {
+    return message.replace("Autonomous agent started task: ", "자율 에이전트 작업 시작: ");
+  }
+  if (message.startsWith("Autonomous agent completed task: ")) {
+    return message.replace("Autonomous agent completed task: ", "자율 에이전트 작업 완료: ");
+  }
+  if (message.startsWith("Autonomous agent requested Ops Console approval: ")) {
+    return message.replace("Autonomous agent requested Ops Console approval: ", "자율 에이전트 콘솔 승인 요청: ");
+  }
+  if (message.startsWith("Discord status report queued: ")) {
+    return message.replace("Discord status report queued: ", "Discord 상태 보고 대기열 등록됨: ");
+  }
+  if (message.startsWith("Discord result report queued: ")) {
+    return message.replace("Discord result report queued: ", "Discord 결과 보고 대기열 등록됨: ");
+  }
   return message;
 }
 

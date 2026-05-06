@@ -44,6 +44,8 @@ describe("korean-friendly labels", () => {
     expect(labelForEventMessage("Operator instruction requested: crypto-signal")).toBe("운영자 지시 등록됨: crypto-signal");
     expect(labelForEventMessage("HQ delegation created: research")).toBe("HQ 하위작업 배정됨: research");
     expect(labelForEventMessage("Discord report queued: hq")).toBe("Discord 보고 대기열 등록됨: hq");
+    expect(labelForEventMessage("Autonomous agent completed task: docs-agent")).toBe("자율 에이전트 작업 완료: docs-agent");
+    expect(labelForEventMessage("Autonomous agent requested Ops Console approval: dev-agent")).toBe("자율 에이전트 콘솔 승인 요청: dev-agent");
   });
 
   it("formats timestamps for Korean operators", () => {

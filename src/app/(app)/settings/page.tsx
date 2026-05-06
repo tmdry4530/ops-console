@@ -6,9 +6,9 @@ export default function SettingsPage() {
     { title: "Auth proxy", value: "Reverse proxy (header injection)", status: "ok", hint: "x-ops-operator-email" },
     { title: "Database", value: "Postgres · primary", status: "ok", hint: "Production database" },
     { title: "Redis / rate-limit", value: "Not connected", status: "warn", hint: "Production hardening pending" },
-    { title: "Worker pool", value: "Ingest + commands workers", status: "ok", hint: "BullMQ workers" },
+    { title: "Worker pool", value: "Ingest + commands + autonomous agents", status: "ok", hint: "DB workflow workers" },
     { title: "Backup freshness", value: "Backups configured", status: "ok", hint: "S3 · object-lock" },
-    { title: "Notification target", value: "Slack #ops-alerts", status: "warn", hint: "Webhook placeholder" }
+    { title: "Notification target", value: "Discord reports only", status: "warn", hint: "Approvals stay in Ops Console" }
   ];
 
   return (

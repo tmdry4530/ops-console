@@ -25,6 +25,7 @@
     "prisma:seed": "tsx prisma/seed.ts",
     "worker:ingest": "tsx src/workers/ingest.ts",
     "worker:commands": "tsx src/workers/commands.ts",
+    "worker:agents": "tsx src/workers/agents.ts",
     "docker:config": "docker compose config"
   },
   "dependencies": {
