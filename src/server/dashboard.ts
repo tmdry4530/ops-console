@@ -1,10 +1,10 @@
-import { workAgentWhereClause } from "@/lib/agent-visibility";
+import { compareCompanyAgents, workAgentWhereClause } from "@/lib/agent-visibility";
 import { db } from "@/lib/db";
 
 const workAgentEventWhere = { OR: [{ agentId: null }, { agent: { is: workAgentWhereClause() } }] };
 
 export async function getDashboardSummary() {
-  const [agents, projects, tasks, approvals, artifacts, criticalEvents, recentEvents] = await Promise.all([
+  const [agentsRaw, projects, tasks, approvals, artifacts, criticalEvents, recentEvents] = await Promise.all([
     db.agent.findMany({ where: workAgentWhereClause(), orderBy: { updatedAt: "desc" }, take: 12 }),
     db.project.findMany({ orderBy: { updatedAt: "desc" }, take: 12 }),
     db.task.findMany({ orderBy: { updatedAt: "desc" }, take: 12 }),
@@ -13,6 +13,8 @@ export async function getDashboardSummary() {
     db.event.findMany({ where: { AND: [{ severity: "critical" }, workAgentEventWhere] }, orderBy: { createdAt: "desc" }, take: 5 }),
     db.event.findMany({ where: workAgentEventWhere, orderBy: { createdAt: "desc" }, take: 8 })
   ]);
+
+  const agents = agentsRaw.sort(compareCompanyAgents);
 
   const failedJobs = tasks.filter((task) => task.status === "failed").length;
   const activeTasks = tasks.filter((task) => ["queued", "running", "waiting_approval", "needs_changes"].includes(task.status)).length;

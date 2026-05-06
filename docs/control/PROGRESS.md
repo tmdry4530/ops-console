@@ -71,8 +71,8 @@ Passed:
   - LAN URL is `http://192.168.35.36:3010/dashboard`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
   - Tailnet-only HTTPS URL is `https://mac-mini-ops-console.tail2e580b.ts.net/`, served through Tailscale Serve to `http://127.0.0.1:3010`.
   - Added live Mac mini status ingestion:
-  - `ai.company.ops-console.live-status` writes safe launchd status files for actual work/monitoring agents under ignored `ops/status/*.json` every 60 seconds.
-  - Ingestion surfaces work agents such as auth health monitoring and crypto signal collection in the Agents tab; gateway/proxy/app infrastructure is intentionally hidden from the agent command center and remains covered by healthcheck/logs.
+  - `ai.company.ops-console.live-status` writes safe launchd status files for process-backed monitoring agents under ignored `ops/status/*.json` every 60 seconds.
+  - The Agents tab is the Company agent control plane: it includes hq/main/research/projects/dev/content/trading/docs department agents plus process-backed monitoring agents such as auth health and crypto signal collection. Gateway/proxy/app infrastructure is intentionally hidden from the agent command center and remains covered by healthcheck/logs.
 
   - Added `ai.company.ops-console.command-worker`; it polls queued safe commands every 15 seconds and completed the existing `revenue_outreach` queued command. `immunefi_submit` remains `waiting_manual_handoff` by policy.
   - Added the first console-native instruction path: each Agent detail page now has a `콘솔 지시` form. Operator instructions create a linked Task, Approval, and Event so all work can be routed through the existing approval/command/manual-handoff workflow instead of being managed only by chat.

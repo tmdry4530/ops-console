@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWorkAgent } from "./agent-visibility";
+import { compareCompanyAgents, isWorkAgent } from "./agent-visibility";
 
 describe("agent visibility", () => {
   it("hides infrastructure gateway/proxy/app services from the work-agent console", () => {
@@ -14,5 +14,25 @@ describe("agent visibility", () => {
     expect(isWorkAgent("crypto-signal")).toBe(true);
     expect(isWorkAgent("auth-manager")).toBe(true);
     expect(isWorkAgent("trading-bounty")).toBe(true);
+  });
+
+  it("keeps Company department agents visible", () => {
+    expect(isWorkAgent("hq-agent")).toBe(true);
+    expect(isWorkAgent("dev-agent")).toBe(true);
+    expect(isWorkAgent("research-agent")).toBe(true);
+    expect(isWorkAgent("content-agent")).toBe(true);
+    expect(isWorkAgent("docs-agent")).toBe(true);
+  });
+
+  it("sorts Company department agents before process-backed monitors", () => {
+    const sorted = [
+      { slug: "crypto-signal" },
+      { slug: "dev-agent" },
+      { slug: "hq-agent" },
+      { slug: "research-agent" },
+      { slug: "auth-manager" }
+    ].sort(compareCompanyAgents);
+
+    expect(sorted.map((agent) => agent.slug)).toEqual(["hq-agent", "research-agent", "dev-agent", "crypto-signal", "auth-manager"]);
   });
 });

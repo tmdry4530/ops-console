@@ -14,6 +14,17 @@ const policies: Array<{ actionType: string; action: PolicyAction; riskLevel: Ris
   { actionType: "public_disclosure", action: "require_approval", riskLevel: "high", description: "Public disclosure requires approval." }
 ];
 
+const companyDepartmentAgents = [
+  { slug: "hq-agent", name: "HQ Agent", department: "hq", repoPath: "hq/", focus: "의사결정, 승인 게이트, 전략 요약" },
+  { slug: "main-agent", name: "Main Ops Agent", department: "main", repoPath: "main/", focus: "공통 운영, 라우팅, cross-functional handoff" },
+  { slug: "research-agent", name: "Research Agent", department: "research", repoPath: "research/", focus: "후보 조사, scope, 중복/근거 확인" },
+  { slug: "projects-agent", name: "Projects Agent", department: "projects", repoPath: "projects/", focus: "프로젝트 보드, milestone, blocker 관리" },
+  { slug: "dev-agent", name: "Dev Agent", department: "dev", repoPath: "dev/", focus: "구현, 자동화, 검증 노트" },
+  { slug: "content-agent", name: "Content Agent", department: "content", repoPath: "content/", focus: "랜딩, 아웃리치, 카피 초안" },
+  { slug: "trading-agent", name: "Trading Agent", department: "trading", repoPath: "trading/", focus: "Web3 bounty/security 실행, PoC, draft report" },
+  { slug: "docs-agent", name: "Docs Agent", department: "docs", repoPath: "docs/", focus: "시스템 문서, 로그, 아카이브" }
+];
+
 function safeHashForFile(filePath: string) {
   try {
     return contentHash(readFileSync(filePath));
@@ -31,6 +42,38 @@ async function main() {
 
   for (const policy of policies) {
     await prisma.policy.upsert({ where: { actionType: policy.actionType }, update: policy, create: policy });
+  }
+
+  for (const agent of companyDepartmentAgents) {
+    await prisma.agent.upsert({
+      where: { slug: agent.slug },
+      update: {
+        name: agent.name,
+        health: "ok",
+        metadata: {
+          type: "company_department_agent",
+          department: agent.department,
+          discordChannel: agent.department,
+          repoPath: agent.repoPath,
+          focus: agent.focus,
+          source: "dom-company"
+        }
+      },
+      create: {
+        slug: agent.slug,
+        name: agent.name,
+        status: "idle",
+        health: "ok",
+        metadata: {
+          type: "company_department_agent",
+          department: agent.department,
+          discordChannel: agent.department,
+          repoPath: agent.repoPath,
+          focus: agent.focus,
+          source: "dom-company"
+        }
+      }
+    });
   }
 
   const bountyAgent = await prisma.agent.upsert({
