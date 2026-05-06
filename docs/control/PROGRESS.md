@@ -70,10 +70,10 @@ Passed:
   - `GET http://127.0.0.1:3010/dashboard` returned OK for local browser use.
   - LAN URL is `http://192.168.35.36:3010/dashboard`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
   - Tailnet-only HTTPS URL is `https://mac-mini-ops-console.tail2e580b.ts.net/`, served through Tailscale Serve to `http://127.0.0.1:3010`.
-- Added live Mac mini status ingestion:
-  - `ai.company.ops-console.live-status` writes safe launchd service status files under ignored `ops/status/*.json` every 60 seconds.
-  - Ingestion now surfaces Company/Auth/Crypto gateways, crypto signal collector, and Ops Console app/proxy in the Agents tab.
-  - Ingestion also reads shared Company data from `/Users/domclaw/dom-company` by default: docs index, decision log, SaaS revenue pipeline CSV, trading status, and trading reports.
+  - Added live Mac mini status ingestion:
+  - `ai.company.ops-console.live-status` writes safe launchd status files for actual work/monitoring agents under ignored `ops/status/*.json` every 60 seconds.
+  - Ingestion surfaces work agents such as auth health monitoring and crypto signal collection in the Agents tab; gateway/proxy/app infrastructure is intentionally hidden from the agent command center and remains covered by healthcheck/logs.
+
   - Added `ai.company.ops-console.command-worker`; it polls queued safe commands every 15 seconds and completed the existing `revenue_outreach` queued command. `immunefi_submit` remains `waiting_manual_handoff` by policy.
   - Added the first console-native instruction path: each Agent detail page now has a `콘솔 지시` form. Operator instructions create a linked Task, Approval, and Event so all work can be routed through the existing approval/command/manual-handoff workflow instead of being managed only by chat.
   - Console instruction safety policy: low/medium internal instructions can be approved into the safe queue; deploy, bounty submission, wallet/KYC, live trading, paid action, public disclosure, and high/critical risk instructions remain approval/manual-gate controlled.

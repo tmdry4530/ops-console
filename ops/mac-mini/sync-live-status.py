@@ -15,14 +15,9 @@ APP_DIR = Path("/Users/domclaw/ops-console")
 STATUS_DIR = APP_DIR / "ops" / "status"
 
 SERVICES = [
-    {
-        "agent_id": "company-gateway",
-        "project_id": "company-platform",
-        "task_id": "company-discord-gateway",
-        "label": "ai.hermes.gateway-company",
-        "summary": "Company Discord Hermes gateway launchd service",
-        "next_action": "Monitor gateway process and Discord delivery health",
-    },
+    # Only surface actual work/monitoring agents in the Ops Console agent view.
+    # Gateway/proxy/app infrastructure remains checked by healthcheck/logs, but is
+    # intentionally not presented as an operator-manageable "agent".
     {
         "agent_id": "auth-manager",
         "project_id": "auth-platform",
@@ -32,44 +27,12 @@ SERVICES = [
         "next_action": "Monitor provider health and OAuth alerts",
     },
     {
-        "agent_id": "auth-gateway",
-        "project_id": "auth-platform",
-        "task_id": "auth-discord-gateway",
-        "label": "ai.hermes.gateway-auth-manager",
-        "summary": "Auth Discord Hermes gateway launchd service",
-        "next_action": "Monitor auth-agent command channel",
-    },
-    {
         "agent_id": "crypto-signal",
         "project_id": "crypto-signal-platform",
         "task_id": "crypto-signal-collector",
         "label": "ai.hermes.crypto-signal.collector",
         "summary": "Crypto signal collector launchd service",
         "next_action": "Monitor source quality and gated signal output",
-    },
-    {
-        "agent_id": "crypto-gateway",
-        "project_id": "crypto-signal-platform",
-        "task_id": "crypto-discord-gateway",
-        "label": "ai.hermes.gateway-crypto-signal",
-        "summary": "Crypto Discord Hermes gateway launchd service",
-        "next_action": "Monitor crypto signal Discord channels",
-    },
-    {
-        "agent_id": "ops-console-app",
-        "project_id": "ops-console",
-        "task_id": "ops-console-nextjs-app",
-        "label": "ai.company.ops-console.app",
-        "summary": "Company Ops Console Next.js launchd app",
-        "next_action": "Keep app health and dashboard reachable",
-    },
-    {
-        "agent_id": "ops-console-proxy",
-        "project_id": "ops-console",
-        "task_id": "ops-console-lan-proxy",
-        "label": "ai.company.ops-console.proxy",
-        "summary": "Company Ops Console LAN allowlist auth proxy",
-        "next_action": "Keep 192.168.35.244 allowlisted dashboard access reachable",
     },
 ]
 

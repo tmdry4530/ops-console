@@ -47,7 +47,7 @@ Current Mac mini deployment is live.
 - LaunchAgents:
   - `ai.company.ops-console.app`
   - `ai.company.ops-console.proxy`
-  - `ai.company.ops-console.live-status` updates safe local service status every 60 seconds and ingests it into the Ops Console database.
+  - `ai.company.ops-console.live-status` updates safe local work-agent status every 60 seconds and ingests it into the Ops Console database. Gateway/proxy/app infrastructure is not shown as an operator-manageable agent.
   - `ai.company.ops-console.command-worker` polls queued safe commands every 15 seconds and executes the DB workflow (`queued → running → completed/failed`). Manual-handoff actions stay blocked.
   - `ai.company.tailscale.userspace` runs Tailscale userspace networking with socket `/Users/domclaw/.tailscale/tailscaled.sock` and keeps Tailscale Serve available.
 - Logs:
@@ -62,7 +62,7 @@ Current Mac mini deployment is live.
   - `~/Library/Logs/ops-console/tailscale-userspace.out.log`
   - `~/Library/Logs/ops-console/tailscale-userspace.err.log`
 - Health check: `bash /Users/domclaw/ops-console/ops/mac-mini/healthcheck.sh`
-- Data ingestion: local Ops Console `ops/status/*.json`, plus shared Company data under `/Users/domclaw/dom-company` by default (`docs/INDEX.md`, `hq/decisions/Company-Decision-Log.md`, `projects/saas/data/revenue_pipeline.csv`, `trading/status/*.md`, `trading/reports/*.md`). Override with `COMPANY_DATA_ROOT` if needed.
+- Data ingestion: local Ops Console `ops/status/*.json` for work-agent status, plus shared Company data under `/Users/domclaw/dom-company` by default (`docs/INDEX.md`, `hq/decisions/Company-Decision-Log.md`, `projects/saas/data/revenue_pipeline.csv`, `trading/status/*.md`, `trading/reports/*.md`). Override with `COMPANY_DATA_ROOT` if needed.
 - Console instruction control: Agent detail pages include a `콘솔 지시` form. Submitting a directive creates linked Task/Approval/Event records; operators then use the Approvals tab to approve safe queued execution or record manual handoff. High-risk categories remain manual-gated even on the private LAN/tailnet.
 - Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.
 
