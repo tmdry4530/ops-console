@@ -41,12 +41,15 @@ Current Mac mini deployment is live.
 - Repo path: `/Users/domclaw/ops-console`
 - Browser URL from Mac mini itself: `http://127.0.0.1:3010/dashboard`
 - LAN URL for allowlisted clients `192.168.35.244` and `192.168.0.31`: `http://192.168.35.36:3010/dashboard`
+- Tailnet URL for Tailscale clients: `https://mac-mini-ops-console.tail2e580b.ts.net/`
+- Tailscale node IP: `100.94.36.17`; access is via Tailscale Serve proxying to `http://127.0.0.1:3010`, not by opening app port `3000` publicly.
 - Direct app URL: `http://127.0.0.1:3000` with `x-ops-operator-email` header; app is loopback-only.
 - LaunchAgents:
   - `ai.company.ops-console.app`
   - `ai.company.ops-console.proxy`
   - `ai.company.ops-console.live-status` updates safe local service status every 60 seconds and ingests it into the Ops Console database.
   - `ai.company.ops-console.command-worker` polls queued safe commands every 15 seconds and executes the DB workflow (`queued → running → completed/failed`). Manual-handoff actions stay blocked.
+  - `ai.company.tailscale.userspace` runs Tailscale userspace networking with socket `/Users/domclaw/.tailscale/tailscaled.sock` and keeps Tailscale Serve available.
 - Logs:
   - `~/Library/Logs/ops-console/app.out.log`
   - `~/Library/Logs/ops-console/app.err.log`
@@ -56,11 +59,13 @@ Current Mac mini deployment is live.
   - `~/Library/Logs/ops-console/live-status.err.log`
   - `~/Library/Logs/ops-console/command-worker.out.log`
   - `~/Library/Logs/ops-console/command-worker.err.log`
+  - `~/Library/Logs/ops-console/tailscale-userspace.out.log`
+  - `~/Library/Logs/ops-console/tailscale-userspace.err.log`
 - Health check: `bash /Users/domclaw/ops-console/ops/mac-mini/healthcheck.sh`
 - Data ingestion: local Ops Console `ops/status/*.json`, plus shared Company data under `/Users/domclaw/dom-company` by default (`docs/INDEX.md`, `hq/decisions/Company-Decision-Log.md`, `projects/saas/data/revenue_pipeline.csv`, `trading/status/*.md`, `trading/reports/*.md`). Override with `COMPANY_DATA_ROOT` if needed.
 - Data services: Docker Compose Postgres/Redis, local-only published ports `55432` and `56379`.
 
-Operational caveat: this is private LAN deployment. The browser proxy listens on `0.0.0.0:3010` but only allows `127.0.0.1`, `::1`, `192.168.35.244`, and `192.168.0.31`; other client IPs receive `403 Forbidden`. Do not expose `3010` or `3000` publicly without replacing the header proxy with real auth/SSO and public hardening.
+Operational caveat: this is private LAN plus private tailnet deployment. The browser proxy listens on `0.0.0.0:3010` but only allows `127.0.0.1`, `::1`, `192.168.35.244`, and `192.168.0.31`; other client IPs receive `403 Forbidden`. Tailscale access uses tailnet-only HTTPS Serve at `https://mac-mini-ops-console.tail2e580b.ts.net/`, which forwards locally to the proxy as loopback. Do not expose `3010` or `3000` publicly without replacing the header proxy with real auth/SSO and public hardening.
 
 ## Documentation organization update
 

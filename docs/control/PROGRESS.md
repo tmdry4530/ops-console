@@ -63,11 +63,13 @@ Passed:
 - Installed launchd agents:
   - `ai.company.ops-console.app` runs the standalone Next.js app on `127.0.0.1:3000` only.
   - `ai.company.ops-console.proxy` listens on `0.0.0.0:3010` for LAN browser access and only allows `127.0.0.1`, `::1`, `192.168.35.244`, and `192.168.0.31`.
+  - `ai.company.tailscale.userspace` runs Tailscale in userspace mode without root TUN privileges and keeps the tailnet session alive.
 - Runtime smoke passed:
   - `GET /api/health` returned OK.
   - `GET /dashboard` with operator header returned OK.
   - `GET http://127.0.0.1:3010/dashboard` returned OK for local browser use.
   - LAN URL is `http://192.168.35.36:3010/dashboard`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
+  - Tailnet-only HTTPS URL is `https://mac-mini-ops-console.tail2e580b.ts.net/`, served through Tailscale Serve to `http://127.0.0.1:3010`.
 - Added live Mac mini status ingestion:
   - `ai.company.ops-console.live-status` writes safe launchd service status files under ignored `ops/status/*.json` every 60 seconds.
   - Ingestion now surfaces Company/Auth/Crypto gateways, crypto signal collector, and Ops Console app/proxy in the Agents tab.

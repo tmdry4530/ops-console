@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>ai.company.tailscale.userspace</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/opt/tailscale/bin/tailscaled</string>
+    <string>--tun=userspace-networking</string>
+    <string>--socket=/Users/domclaw/.tailscale/tailscaled.sock</string>
+    <string>--statedir=/Users/domclaw/.tailscale</string>
+    <string>--socks5-server=127.0.0.1:1055</string>
+    <string>--outbound-http-proxy-listen=127.0.0.1:1056</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/domclaw/Library/Logs/ops-console/tailscale-userspace.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/domclaw/Library/Logs/ops-console/tailscale-userspace.err.log</string>
+</dict>
+</plist>
