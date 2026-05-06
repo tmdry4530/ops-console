@@ -67,6 +67,14 @@ function isSafeAutonomousRisk(riskLevel: RiskLevel): boolean {
   return riskLevel === "low" || riskLevel === "medium";
 }
 
+function requiresRevenueOutreachApproval(task: AutonomousTaskRecord): boolean {
+  const text = `${task.title}\n${task.summary ?? ""}`.toLowerCase();
+  const hasRevenueContext = /revenue|수익|매출|saas|pipeline|파이프라인|후보|prospect|a그룹|b그룹/.test(text);
+  const hasExternalSend = /outreach|발송|보낸다|보내기|dm|이메일|email|카카오|kakao|인스타|instagram|\bline\b|외부 메시지|1:1/.test(text);
+  const isPreparationOnly = /승인팩|초안|draft|준비|보강|proposal|artifact|하지 않는다|자동 발송 없음|외부 발송은 하지 않는다/.test(text);
+  return hasRevenueContext && hasExternalSend && !isPreparationOnly;
+}
+
 function timestamp(now: Date): string {
   return now.toISOString();
 }
@@ -83,6 +91,37 @@ export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date
     mode: "autonomous_agent_worker",
     executedAt
   };
+
+  if (requiresRevenueOutreachApproval(task)) {
+    return {
+      kind: "request_console_approval",
+      taskStatus: "waiting_approval",
+      agentStatus: "waiting_approval",
+      taskNextAction: "Ops Console 매출 아웃리치 승인 대기 · 외부 발송 자동 실행 금지",
+      approval: {
+        type: "revenue_outreach",
+        status: "pending",
+        riskLevel: task.riskLevel,
+        title: `매출 아웃리치 승인 필요 · ${task.agent.name}`,
+        summary: `자율 에이전트가 외부 수익 아웃리치 발송 작업을 감지해 콘솔 승인을 요청했습니다.\n\n작업: ${task.title}\n요약: ${task.summary ?? "없음"}`,
+        requestedBy: "autonomous-agent-worker"
+      },
+      events: [
+        {
+          type: "agent.autonomy.approval_requested",
+          severity: "warning",
+          message: `Revenue outreach approval requested: ${task.agent.slug}`,
+          metadata: { ...baseMetadata, riskLevel: task.riskLevel, approvalTarget: "ops_console", approvalType: "revenue_outreach", externalSend: false }
+        },
+        {
+          type: "discord.report.queued",
+          severity: "info",
+          message: `Discord status report queued: ${task.agent.slug}`,
+          metadata: { ...baseMetadata, purpose: "status_report", approvalRequest: false, consoleApprovalId: "pending" }
+        }
+      ]
+    };
+  }
 
   if (!isSafeAutonomousRisk(task.riskLevel)) {
     return {

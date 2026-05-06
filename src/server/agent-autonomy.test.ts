@@ -56,6 +56,31 @@ describe("planAutonomousTaskRun", () => {
     ]);
   });
 
+  it("routes revenue outreach sending work to the Ops Console approval inbox even when risk is medium", () => {
+    const plan = planAutonomousTaskRun(
+      {
+        ...safeTask,
+        riskLevel: "medium",
+        title: "A그룹 5곳 수동 outreach DM/이메일 실제 발송",
+        summary: "revenue_pipeline.csv 후보에게 외부 메시지를 보낸다."
+      },
+      new Date("2026-05-06T00:00:00.000Z")
+    );
+
+    expect(plan.kind).toBe("request_console_approval");
+    expect(plan.taskStatus).toBe("waiting_approval");
+    expect(plan.approval).toMatchObject({
+      type: "revenue_outreach",
+      status: "pending",
+      riskLevel: "medium",
+      requestedBy: "autonomous-agent-worker"
+    });
+    expect(plan.events.map((event) => event.type)).toEqual([
+      "agent.autonomy.approval_requested",
+      "discord.report.queued"
+    ]);
+  });
+
   it("routes high-risk autonomous work to the Ops Console approval inbox", () => {
     const plan = planAutonomousTaskRun({ ...safeTask, riskLevel: "high", title: "프로덕션 배포" }, new Date("2026-05-06T00:00:00.000Z"));
 
