@@ -14,7 +14,7 @@ export function ProjectBoard({ projects }: { projects: Project[] }) {
           </div>
           <div className="pname">{p.name}</div>
           {p.blocker && <div className="blocker-msg">{p.blocker}</div>}
-          {p.nextAction && <div className="next-action">{p.nextAction}</div>}
+          {p.nextAction ? <div className="next-action">{p.nextAction}</div> : <div className="muted" style={{ fontSize: 12.5 }}>다음 액션 미등록</div>}
         </Link>
       ))}
     </div>

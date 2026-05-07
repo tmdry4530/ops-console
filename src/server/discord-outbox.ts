@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { db } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,11 +16,28 @@ function metadataRecord(metadata: unknown): Record<string, unknown> | null {
   return metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata as Record<string, unknown> : null;
 }
 
+export function isDeadLetterDiscordReport(event: DiscordEvent): boolean {
+  const metadata = metadataRecord(event.metadata);
+  return metadata?.deliveryStatus === "dead_letter";
+}
+
+export function deadLetterMetadata(metadata: Record<string, unknown>, error: string, now = new Date()): Record<string, unknown> {
+  return {
+    ...metadata,
+    deliveryStatus: "dead_letter",
+    deliveryAttempts: Number(metadata.deliveryAttempts ?? 0),
+    deliveryFailedAt: now.toISOString(),
+    deliveryError: error.slice(0, 500)
+  };
+}
+
 export function isSendableDiscordReport(event: DiscordEvent): boolean {
   if (event.type !== "discord.report.queued") return false;
   const metadata = metadataRecord(event.metadata);
   if (!metadata) return false;
   if (typeof metadata.deliveredAt === "string") return false;
+  if (metadata.deliveryStatus === "dead_letter") return false;
+  if (Number(metadata.deliveryAttempts ?? 0) >= Number(process.env.OPS_DISCORD_OUTBOX_MAX_ATTEMPTS ?? 3)) return false;
   return typeof metadata.channel === "string" && metadata.channel.length > 0 && typeof metadata.message === "string" && metadata.message.length > 0;
 }
 
@@ -74,7 +92,11 @@ export async function processNextDiscordReport(): Promise<DiscordReportResult> {
     return { status: "completed", eventId: event.id };
   }
 
-  await db.event.update({ where: { id: event.id }, data: { metadata: { ...metadata, deliveryFailedAt: new Date().toISOString(), deliveryError: result.stderr.slice(0, 500) } } });
-  await db.event.create({ data: { type: "discord.report.delivery_failed", severity: "warning", message: `Discord report delivery failed: ${String(metadata.channel ?? "hq")}`, metadata: { sourceEventId: event.id } } });
-  return { status: "failed", reason: "delivery_failed", eventId: event.id };
+  const attempts = Number(metadata.deliveryAttempts ?? 0) + 1;
+  const failureMetadata = (attempts >= Number(process.env.OPS_DISCORD_OUTBOX_MAX_ATTEMPTS ?? 3)
+    ? deadLetterMetadata({ ...metadata, deliveryAttempts: attempts }, result.stderr, new Date())
+    : { ...metadata, deliveryAttempts: attempts, deliveryStatus: "retry_pending", deliveryFailedAt: new Date().toISOString(), deliveryError: result.stderr.slice(0, 500) }) as Prisma.InputJsonObject;
+  await db.event.update({ where: { id: event.id }, data: { metadata: failureMetadata } });
+  await db.event.create({ data: { type: attempts >= Number(process.env.OPS_DISCORD_OUTBOX_MAX_ATTEMPTS ?? 3) ? "discord.report.dead_letter" : "discord.report.delivery_failed", severity: "warning", message: `Discord report delivery failed: ${String(metadata.channel ?? "hq")}`, metadata: { sourceEventId: event.id, attempts } } });
+  return { status: "failed", reason: attempts >= Number(process.env.OPS_DISCORD_OUTBOX_MAX_ATTEMPTS ?? 3) ? "dead_letter" : "delivery_failed", eventId: event.id };
 }

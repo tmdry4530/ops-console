@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDiscordReportPrompt, isSendableDiscordReport } from "./discord-outbox";
+import { buildDiscordReportPrompt, deadLetterMetadata, isDeadLetterDiscordReport, isSendableDiscordReport } from "./discord-outbox";
 
 const event = {
   id: "event_1",
@@ -19,10 +19,10 @@ describe("discord report outbox", () => {
     expect(isSendableDiscordReport({ ...event, metadata: { channel: "research" } })).toBe(false);
   });
 
-  it("builds a Hermes prompt that asks for actual Discord delivery", () => {
-    const prompt = buildDiscordReportPrompt(event);
-    expect(prompt).toContain("실제 Discord research 채널로 전송");
-    expect(prompt).toContain("상태: 완료");
-    expect(prompt).toContain("event_1");
+  it("dead-letters reports after repeated delivery failures", () => {
+    const dead = deadLetterMetadata({ ...event.metadata, deliveryAttempts: 3 }, "network timeout", new Date("2026-05-07T00:00:00.000Z"));
+    expect(dead).toMatchObject({ deliveryStatus: "dead_letter", deliveryAttempts: 3, deliveryError: "network timeout" });
+    expect(isDeadLetterDiscordReport({ ...event, metadata: dead })).toBe(true);
+    expect(isSendableDiscordReport({ ...event, metadata: dead })).toBe(false);
   });
 });

@@ -46,6 +46,8 @@ export type CommandExecutionPort = {
 type CommandPayload = {
   projectId?: string | null;
   taskId?: string | null;
+  agentId?: string | null;
+  action?: string | null;
 };
 
 function readPayload(payload: unknown): CommandPayload {
@@ -53,7 +55,9 @@ function readPayload(payload: unknown): CommandPayload {
     const record = payload as Record<string, unknown>;
     return {
       projectId: typeof record.projectId === "string" ? record.projectId : null,
-      taskId: typeof record.taskId === "string" ? record.taskId : null
+      taskId: typeof record.taskId === "string" ? record.taskId : null,
+      agentId: typeof record.agentId === "string" ? record.agentId : null,
+      action: typeof record.action === "string" ? record.action : null
     };
   }
   return { projectId: null, taskId: null };
@@ -69,6 +73,31 @@ function isMetadataRecord(metadata: unknown): metadata is Record<string, unknown
 
 export async function processCommand(command: QueuedCommandRecord, port: CommandExecutionPort): Promise<CommandExecutionResult> {
   const payload = readPayload(command.payload);
+
+  if (command.actionType.startsWith("agent_control_")) {
+    if (!payload.agentId || !payload.action) {
+      const failed = result("failed", "missing_agent_control_payload");
+      await port.failCommand(command.id, failed);
+      return failed;
+    }
+    await port.markCommandRunning(command.id);
+    const target = payload.action === "pause"
+      ? { status: "blocked" as const, currentTask: "operator paused" }
+      : payload.action === "resume"
+        ? { status: "idle" as const, currentTask: null }
+        : { status: "running" as const, currentTask: "operator retry requested" };
+    await db.agent.update({ where: { id: payload.agentId }, data: target });
+    const completed = result("completed", "agent_control_state_recorded");
+    await port.completeCommand(command.id, completed);
+    await port.createCommandEvent({
+      type: "agent.control.completed",
+      severity: "info",
+      message: `Agent control completed: ${payload.action}`,
+      commandQueueId: command.id,
+      metadata: { actionType: command.actionType, riskLevel: command.riskLevel, agentId: payload.agentId, action: payload.action }
+    });
+    return completed;
+  }
 
   if (command.actionType === "revenue_outreach" && !requiresManualHandoff(command.actionType, command.riskLevel)) {
     const externalSend = evaluateExternalSendPermission({ actionType: command.actionType, riskLevel: command.riskLevel, payload: command.payload });

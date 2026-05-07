@@ -39,7 +39,7 @@ export default async function AgentsPage() {
       </div>
 
       <div className="grid-12" style={{ marginBottom: 20 }}>
-        <div className="span-2"><MetricCard label="전체" value={String(monitor.totals.agents)} delta="관리 대상" /></div>
+        <div className="span-2"><MetricCard label="전체" value={String(monitor.totals.agents)} delta="agents" /></div>
         <div className="span-2"><MetricCard label="Live" value={String(monitor.totals.processLive)} delta="heartbeat" trend="up" /></div>
         <div className="span-2"><MetricCard label="Workflow" value={String(monitor.totals.workflowRunning)} delta="DB task" /></div>
         <div className="span-2"><MetricCard label="활성 작업" value={String(monitor.totals.activeTasks)} delta="active" /></div>

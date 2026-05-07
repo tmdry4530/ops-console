@@ -233,7 +233,7 @@ export default async function DashboardPage() {
               </div>
             </div>
             <div className="card-body">
-              <EventTimeline events={summary.recentEvents} />
+              <EventTimeline events={summary.recentEvents.slice(0, 6)} />
             </div>
           </div>
 

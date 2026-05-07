@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { AgentControlPanel } from "@/components/agent-control-panel";
 import { AgentInstructionForm } from "@/components/agent-instruction-form";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ArtifactLink } from "@/components/artifact-link";
@@ -17,7 +18,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
   const [agent, projects] = await Promise.all([
     db.agent.findUnique({
       where: { id },
-      include: { tasks: { orderBy: { updatedAt: "desc" } }, artifacts: true, events: { orderBy: { createdAt: "desc" }, take: 25 } }
+      include: { tasks: { orderBy: { updatedAt: "desc" } }, artifacts: true, events: { orderBy: { createdAt: "desc" }, take: 25 }, capabilities: { orderBy: { capabilityKey: "asc" } } }
     }),
     db.project.findMany({ orderBy: { updatedAt: "desc" }, select: { id: true, name: true, slug: true } })
   ]);
@@ -80,7 +81,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
                   {agent.tasks.slice(0, 8).map((task) => (
                     <tr key={task.id}>
                       <td>
-                        <div style={{ fontWeight: 500 }}>{task.title}</div>
+                        <Link href={`/tasks/${task.id}` as never} style={{ fontWeight: 500, color: "var(--text-0)", textDecoration: "none" }}>{task.title}</Link>
                         <div className="muted" style={{ fontSize: 11.5 }}>{task.slug}</div>
                       </td>
                       <td><StatusBadge label={task.status} /></td>
@@ -113,6 +114,23 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
         <div className="span-4 vstack" style={{ gap: 16 }}>
+          <AgentControlPanel agentId={agent.id} />
+          <div className="card">
+            <div className="card-head"><div className="title">Capabilities / Runbook</div><div className="sub">· 허용 도구/리스크/수동 게이트</div></div>
+            <div className="card-body vstack" style={{ gap: 10 }}>
+              {agent.capabilities.slice(0, 5).map((cap) => (
+                <div key={cap.id} className="path" style={{ alignItems: "flex-start" }}>
+                  <span className="sev ok" style={{ marginTop: 3 }} />
+                  <span style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>{cap.capabilityKey}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>maxRisk {cap.maxRisk} · artifact {cap.expectedArtifactType} · approval {cap.requiresApproval ? "필요" : "불필요"}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{cap.rollbackOrManualHandoff}</div>
+                  </span>
+                </div>
+              ))}
+              {agent.capabilities.length === 0 && <div className="muted">등록된 capability 없음 · 기본 정책/승인 게이트 적용</div>}
+            </div>
+          </div>
           {agent.slug === "hq-agent" && (
             <div className="card">
               <div className="card-head"><div className="title">HQ 오케스트레이션</div></div>

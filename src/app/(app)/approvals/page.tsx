@@ -85,7 +85,17 @@ export default async function ApprovalsPage({ searchParams }: ApprovalsPageProps
         ))}
         {approvals.length === 0 && (
           <div className="card">
-            <div className="empty">승인 항목이 없습니다.</div>
+            <div className="card-body" style={{ minHeight: 180, display: "grid", placeItems: "center", textAlign: "center" }}>
+              <div>
+                <div style={{ fontSize: 28, marginBottom: 10 }}>✓</div>
+                <div style={{ fontWeight: 700, color: "var(--text-0)", marginBottom: 6 }}>
+                  {activeFilter === "completed" ? "완료된 승인 요청이 없습니다" : activeFilter === "all" ? "승인 요청이 없습니다" : "미완료 승인 요청이 없습니다"}
+                </div>
+                <div className="muted" style={{ fontSize: 12.5, maxWidth: 420 }}>
+                  {activeFilter === "incomplete" ? "완료된 요청은 상단의 완료/전체 필터에서 확인할 수 있습니다." : "필터를 바꾸면 다른 상태의 승인 요청을 확인할 수 있습니다."}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ const items = [
   { key: "agents", label: "에이전트", icon: Icons.agents, href: "/agents" },
   { key: "projects", label: "프로젝트", icon: Icons.projects, href: "/projects" },
   { key: "artifacts", label: "산출물", icon: Icons.artifacts, href: "/artifacts" },
+  { key: "reports", label: "보고", icon: Icons.events, href: "/reports" },
   { key: "events", label: "이벤트", icon: Icons.events, href: "/events" }
 ] as const;
 
@@ -27,7 +28,7 @@ export function SidebarNav({ pendingCount }: { pendingCount: number }) {
       <div className="nav-section">
         <div className="nav-section-label">워크스페이스</div>
         {items.map((it) => (
-          <Link key={it.key} href={it.href} className={`nav-item ${active(it.href) ? "active" : ""}`}>
+          <Link key={it.key} href={it.href as never} className={`nav-item ${active(it.href) ? "active" : ""}`}>
             <span className="nav-icon">{it.icon}</span>
             <span className="nav-label">{it.label}</span>
             {it.key === "approvals" && pendingCount > 0 && (
@@ -39,7 +40,7 @@ export function SidebarNav({ pendingCount }: { pendingCount: number }) {
       <div className="nav-section">
         <div className="nav-section-label">관리</div>
         {adminItems.map((it) => (
-          <Link key={it.key} href={it.href} className={`nav-item ${active(it.href) ? "active" : ""}`}>
+          <Link key={it.key} href={it.href as never} className={`nav-item ${active(it.href) ? "active" : ""}`}>
             <span className="nav-icon">{it.icon}</span>
             <span className="nav-label">{it.label}</span>
           </Link>

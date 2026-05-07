@@ -14,14 +14,15 @@ export default async function ArtifactsPage() {
       </div>
       <div className="card">
         <div className="card-body flush">
-          <table className="tbl">
+          <div className="tbl-wrap">
+          <table className="tbl compact-paths">
             <thead>
               <tr>
                 <th>Kind</th>
                 <th>Title</th>
-                <th>Path</th>
-                <th>Commit</th>
-                <th>Created</th>
+                <th className="path-col">Path</th>
+                <th className="commit-col">Commit</th>
+                <th className="date-col">Created</th>
               </tr>
             </thead>
             <tbody>
@@ -31,15 +32,15 @@ export default async function ArtifactsPage() {
                   <td>
                     <div style={{ fontWeight: 500, color: "var(--text-0)" }}>{art.title}</div>
                   </td>
-                  <td>
+                  <td className="path-col">
                     {art.restricted ? (
                       <span className="badge warn"><span className="dot" />restricted</span>
                     ) : (
-                      <span className="mono" style={{ fontSize: 12, color: "var(--text-1)" }}>{art.path}</span>
+                      <span className="mono" title={art.path ?? undefined} style={{ fontSize: 12, color: "var(--text-1)" }}>{art.path}</span>
                     )}
                   </td>
-                  <td className="mono" style={{ fontSize: 12 }}>{art.commitSha?.slice(0, 7) ?? "—"}</td>
-                  <td className="muted">{new Date(art.createdAt).toLocaleDateString()}</td>
+                  <td className="mono commit-col" style={{ fontSize: 12 }}>{art.commitSha?.slice(0, 7) ?? "—"}</td>
+                  <td className="muted date-col">{new Date(art.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
               {artifacts.length === 0 && (
@@ -49,6 +50,7 @@ export default async function ArtifactsPage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </>
