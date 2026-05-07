@@ -27,71 +27,63 @@ export default async function AgentsPage() {
       <AutoRefresh intervalMs={7000} />
       <div className="page-head">
         <div className="titles">
-          <h1>Company 에이전트 관제센터</h1>
+          <h1>Company 에이전트</h1>
           <div className="sub">
-            7초 자동 동기화 · Company 작업/모니터링 에이전트 {monitor.totals.agents}개 · 실시간 프로세스 {monitor.totals.processLive} · 워크플로 실행 {monitor.totals.workflowRunning}
+            7초 자동 동기화 · Company 작업/모니터링 에이전트 {monitor.totals.agents}개 · live {monitor.totals.processLive} · workflow {monitor.totals.workflowRunning}
           </div>
         </div>
         <div className="actions">
-          <Link href="/events" className="btn ghost sm">이벤트 스트림</Link>
-          <Link href="/approvals" className="btn sm">승인/게이트</Link>
+          <Link href="/events" className="btn ghost sm">이벤트</Link>
+          <Link href="/approvals" className="btn sm">승인</Link>
         </div>
       </div>
 
       <div className="grid-12" style={{ marginBottom: 20 }}>
         <div className="span-2"><MetricCard label="전체" value={String(monitor.totals.agents)} delta="관리 대상" /></div>
-        <div className="span-2"><MetricCard label="프로세스 live" value={String(monitor.totals.processLive)} delta="heartbeat 기반" trend="up" /></div>
-        <div className="span-2"><MetricCard label="워크플로 실행" value={String(monitor.totals.workflowRunning)} delta="DB task 기반" /></div>
-        <div className="span-2"><MetricCard label="활성 작업" value={String(monitor.totals.activeTasks)} delta="queued/running/waiting" /></div>
-        <div className="span-2"><MetricCard label="게이트" value={String(monitor.totals.pendingApprovals)} alert={monitor.totals.pendingApprovals > 0} delta="승인/수동" /></div>
-        <div className="span-2"><MetricCard label="보고 대기" value={String(monitor.totals.queuedReports)} delta="Discord outbox" /></div>
+        <div className="span-2"><MetricCard label="Live" value={String(monitor.totals.processLive)} delta="heartbeat" trend="up" /></div>
+        <div className="span-2"><MetricCard label="Workflow" value={String(monitor.totals.workflowRunning)} delta="DB task" /></div>
+        <div className="span-2"><MetricCard label="활성 작업" value={String(monitor.totals.activeTasks)} delta="active" /></div>
+        <div className="span-2"><MetricCard label="게이트" value={String(monitor.totals.pendingApprovals)} alert={monitor.totals.pendingApprovals > 0} delta="approval" /></div>
+        <div className="span-2"><MetricCard label="보고 대기" value={String(monitor.totals.queuedReports)} delta="outbox" /></div>
       </div>
 
-      <div className="card">
-        <div className="card-head">
-          <div className="title">실시간 에이전트 운영 테이블</div>
-          <div className="sub">· 상태/작업/heartbeat/산출물/다음 조치</div>
-        </div>
-        <div className="card-body flush">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>에이전트</th>
-                <th>런타임</th>
-                <th>상태</th>
-                <th>활성 작업</th>
-                <th>최근 보고</th>
-                <th>다음 조치</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monitor.agents.map((item) => (
-                <tr key={item.agent.id}>
-                  <td>
-                    <Link href={`/agents/${item.agent.id}`} style={{ fontWeight: 600, color: "var(--text-0)" }}>{item.agent.name}</Link>
-                    <div className="muted" style={{ fontSize: 11.5 }}>{item.agent.slug}</div>
-                  </td>
-                  <td><StatusBadge label={RUNTIME_LABELS[item.runtime.runtime]} kind={runtimeKind(item.runtime.runtime)} /></td>
-                  <td>
-                    <StatusBadge label={labelForStatus(item.agent.status)} />
-                    <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>health: {labelForHealth(item.agent.health)}</div>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{item.activeTasks[0]?.title ?? item.agent.currentTask ?? "현재 작업 없음"}</div>
-                    <div className="muted" style={{ fontSize: 11.5 }}>
-                      queued {item.taskCounts.queued} · running {item.taskCounts.running} · wait {item.taskCounts.waiting_approval} · failed {item.taskCounts.failed}
-                    </div>
-                  </td>
-                  <td>
-                    <div>{formatTimeKo(item.agent.heartbeatAt)}</div>
-                    <div className="muted" style={{ fontSize: 11.5 }}>{item.runtime.heartbeat}</div>
-                  </td>
-                  <td>{item.runtime.operatorAction}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
+        {monitor.agents.map((item) => (
+          <Link key={item.agent.id} href={`/agents/${item.agent.id}`} className="agent-card" style={{ textDecoration: "none" }}>
+            <div className="head">
+              <div className="avatar" style={{ background: "var(--bg-3)" }}>{item.agent.name[0]}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="name">{item.agent.name}</div>
+                <div className="role">{item.agent.slug}</div>
+              </div>
+              <StatusBadge label={RUNTIME_LABELS[item.runtime.runtime]} kind={runtimeKind(item.runtime.runtime)} />
+            </div>
+
+            <div className="muted" style={{ fontSize: 12, minHeight: 36, lineHeight: 1.45 }}>
+              {item.activeTasks[0]?.title ?? item.agent.currentTask ?? "현재 작업 없음"}
+            </div>
+
+            <div className="heartbeat" title={item.runtime.heartbeat}>
+              {Array.from({ length: 24 }, (_, i) => {
+                const isOn = item.runtime.runtime === "process_live" || (item.runtime.runtime === "workflow_running" && i < 10);
+                const warn = item.runtime.runtime === "waiting" || item.runtime.runtime === "failed_or_blocked";
+                return <span key={i} className={warn && i >= 16 ? "warn-bar" : isOn && i < 18 ? "on" : ""} style={{ height: isOn && i < 18 ? "78%" : "34%" }} />;
+              })}
+            </div>
+
+            <div className="between" style={{ fontSize: 11.5, color: "var(--text-3)", gap: 8 }}>
+              <span>상태: {labelForStatus(item.agent.status)}</span>
+              <span>health: {labelForHealth(item.agent.health)}</span>
+            </div>
+            <div className="between" style={{ fontSize: 11.5, color: "var(--text-3)", gap: 8, marginTop: 6 }}>
+              <span>최근 보고: {formatTimeKo(item.agent.heartbeatAt)}</span>
+              <span>조치: {item.runtime.operatorAction}</span>
+            </div>
+            <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+              queued {item.taskCounts.queued} · running {item.taskCounts.running} · wait {item.taskCounts.waiting_approval} · failed {item.taskCounts.failed}
+            </div>
+          </Link>
+        ))}
       </div>
     </>
   );
