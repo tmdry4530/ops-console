@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { AgentInstructionForm } from "@/components/agent-instruction-form";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { ArtifactLink } from "@/components/artifact-link";
 import { EventTimeline } from "@/components/event-timeline";
 import { MetricCard } from "@/components/metric-card";
@@ -25,6 +26,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
 
   return (
     <>
+      <AutoRefresh intervalMs={7000} />
       <div className="page-head">
         <div className="titles">
           <div className="row" style={{ gap: 8, marginBottom: 6 }}>
@@ -36,8 +38,8 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
           <div className="sub">{agent.slug} · {agent.currentTask ?? "대기 중"}</div>
         </div>
         <div className="actions">
-          <button className="btn ghost sm">일시정지</button>
-          <button className="btn sm">재시작</button>
+          <Link href="/approvals" className="btn ghost sm">승인/게이트</Link>
+          <Link href="/events" className="btn sm">이벤트 스트림</Link>
         </div>
       </div>
 

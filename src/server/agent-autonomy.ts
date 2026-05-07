@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { contentHash } from "./ingest/hash";
 import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./department-adapters";
-import { hermesBridgeDecision, runHermesCompanyTask } from "./hermes-bridge";
+import { hermesBridgeDecision, hermesReportPathForTask, runHermesCompanyTask } from "./hermes-bridge";
 import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, RiskLevel, TaskStatus } from "@prisma/client";
 
 export const AUTONOMOUS_WORK_AGENT_SLUGS = [
@@ -279,6 +279,23 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
 
   const hermesDecision = hermesBridgeDecision(task);
   if (plan.kind === "execute_safe_task" && hermesDecision.enabled) {
+    const plannedReportPath = hermesReportPathForTask(task);
+    const startedAt = now.toISOString();
+    await db.$transaction([
+      db.task.update({ where: { id: task.id }, data: { status: "running", blocker: null, nextAction: `Hermes Company execution running since ${startedAt}` } }),
+      db.agent.update({ where: { id: task.agent!.id }, data: { status: "running", currentTask: task.title, heartbeatAt: now } }),
+      db.event.create({
+        data: {
+          type: "agent.hermes.started",
+          severity: "info",
+          message: `Hermes Company task started: ${task.agent!.slug}`,
+          agentId: task.agent!.id,
+          projectId: task.projectId ?? undefined,
+          taskId: task.id,
+          metadata: { mode: "hermes_company_bridge", reportPath: plannedReportPath, startedAt }
+        }
+      })
+    ]);
     const hermesResult = await runHermesCompanyTask(task);
     const artifactContent = [
       "## Hermes Company Execution Result",
@@ -300,18 +317,6 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
     const artifactHash = contentHash(`${hermesResult.reportPath}\n${artifactContent}`);
 
     await db.$transaction(async (tx) => {
-      await tx.agent.update({ where: { id: task.agent!.id }, data: { status: "running", currentTask: task.title, heartbeatAt: now } });
-      await tx.event.create({
-        data: {
-          type: "agent.hermes.started",
-          severity: "info",
-          message: `Hermes Company task started: ${task.agent!.slug}`,
-          agentId: task.agent!.id,
-          projectId: task.projectId ?? undefined,
-          taskId: task.id,
-          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, executedAt: hermesResult.executedAt }
-        }
-      });
       const artifact = await tx.artifact.upsert({
         where: { contentHash: artifactHash },
         update: { title: `${task.agent!.name} Hermes execution output`, path: hermesResult.reportPath, type: "report", agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id },
@@ -347,6 +352,10 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
 
     const completedParentTaskIds = await completeFinishedHqParents(task.id, now);
     return { status: hermesResult.status === "completed" ? "completed" : "skipped", reason: hermesResult.status === "failed" ? "hermes_execution_failed" : undefined, taskId: task.id, agentSlug: task.agent.slug, completedParentTaskIds };
+  }
+
+  if (plan.events.length === 0) {
+    return { status: "skipped", reason: "no_autonomous_events", taskId: task.id, agentSlug: task.agent.slug };
   }
 
   await db.$transaction(async (tx) => {

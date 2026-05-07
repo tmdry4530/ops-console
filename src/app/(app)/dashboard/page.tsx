@@ -1,5 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
+import { AutoRefresh } from "@/components/auto-refresh";
 import { EventTimeline } from "@/components/event-timeline";
 import { MetricCard } from "@/components/metric-card";
 import { ProjectBoard } from "@/components/project-board";
@@ -15,11 +16,12 @@ export default async function DashboardPage() {
   const summary = await getDashboardSummary();
   const pending = summary.approvals;
   const critical = pending.find((a) => a.riskLevel === "critical");
-  const activeAgents = summary.agents.filter((a) => a.status === "running").length;
+  const activeAgents = summary.opsMonitor.totals.processLive + summary.opsMonitor.totals.workflowRunning;
   const restrictedArtifacts = summary.artifacts.filter((a) => a.restricted).length;
 
   return (
     <>
+      <AutoRefresh intervalMs={10000} />
       <div className="page-head">
         <div className="titles">
           <h1>운영 현황</h1>
@@ -84,7 +86,7 @@ export default async function DashboardPage() {
           <MetricCard
             label="실행 중인 에이전트"
             value={`${activeAgents}/${summary.agents.length}`}
-            delta="모니터링 중"
+            delta={`${summary.opsMonitor.totals.processLive} live · ${summary.opsMonitor.totals.workflowRunning} workflow`}
             trend="up"
           />
         </div>
@@ -102,6 +104,28 @@ export default async function DashboardPage() {
             value={String(summary.artifacts.length)}
             delta={`제한됨 ${restrictedArtifacts}개`}
           />
+        </div>
+      </div>
+
+      <div className="grid-12" style={{ marginTop: 20 }}>
+        <div className="span-12">
+          <div className="card">
+            <div className="card-head">
+              <div className="title">실시간 Company 관제 요약</div>
+              <div className="sub">· 10초 자동 갱신 · 작업/승인/보고 대기 통합</div>
+              <div className="right">
+                <Link href="/agents" className="btn ghost sm">관제센터 열기</Link>
+              </div>
+            </div>
+            <div className="card-body">
+              <div className="grid-12">
+                <div className="span-3 muted">프로세스 live: <strong style={{ color: "var(--text-0)" }}>{summary.opsMonitor.totals.processLive}</strong></div>
+                <div className="span-3 muted">워크플로 실행: <strong style={{ color: "var(--text-0)" }}>{summary.opsMonitor.totals.workflowRunning}</strong></div>
+                <div className="span-3 muted">활성 작업: <strong style={{ color: "var(--text-0)" }}>{summary.opsMonitor.totals.activeTasks}</strong></div>
+                <div className="span-3 muted">보고 대기: <strong style={{ color: "var(--text-0)" }}>{summary.opsMonitor.totals.queuedReports}</strong></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
