@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
+import { contentHash } from "./ingest/hash";
 import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./department-adapters";
+import { hermesBridgeDecision, runHermesCompanyTask } from "./hermes-bridge";
 import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, RiskLevel, TaskStatus } from "@prisma/client";
 
 export const AUTONOMOUS_WORK_AGENT_SLUGS = [
@@ -187,6 +189,10 @@ export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date
   };
 }
 
+export function hqParentAgentCompletionState(): { status: AgentStatus; currentTask: null } {
+  return { status: "idle", currentTask: null };
+}
+
 export async function completeFinishedHqParents(childTaskId: string, now = new Date()): Promise<string[]> {
   const delegationEvents = await db.event.findMany({
     where: { type: "hq.delegation.created", taskId: childTaskId },
@@ -210,10 +216,15 @@ export async function completeFinishedHqParents(childTaskId: string, now = new D
     const childTasks = await db.task.findMany({ where: { id: { in: childTaskIds } }, select: { status: true } });
     if (!shouldCompleteHqParent(childTasks.map((task) => task.status))) continue;
 
+    const parentTasks = await db.task.findMany({ where: { id: { in: [parentTaskId] } }, select: { agentId: true } });
+    const parentAgentIds = parentTasks.map((task) => task.agentId).filter((agentId): agentId is string => Boolean(agentId));
     await db.task.update({
       where: { id: parentTaskId },
       data: { status: "completed", blocker: null, nextAction: `HQ delegated work completed at ${now.toISOString()}` }
     });
+    if (parentAgentIds.length > 0) {
+      await db.agent.updateMany({ where: { id: { in: parentAgentIds } }, data: hqParentAgentCompletionState() });
+    }
     await db.event.create({
       data: {
         type: "hq.orchestration.completed",
@@ -264,6 +275,78 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
       }))
     ]);
     return { status: "waiting_approval", taskId: task.id, agentSlug: task.agent.slug };
+  }
+
+  const hermesDecision = hermesBridgeDecision(task);
+  if (plan.kind === "execute_safe_task" && hermesDecision.enabled) {
+    const hermesResult = await runHermesCompanyTask(task);
+    const artifactContent = [
+      "## Hermes Company Execution Result",
+      "",
+      `- Agent: ${task.agent.slug}`,
+      `- Task: ${task.title}`,
+      `- Status: ${hermesResult.status}`,
+      `- Executed At: ${hermesResult.executedAt}`,
+      `- Report Path: ${hermesResult.reportPath}`,
+      "",
+      "## Stdout",
+      "",
+      "```text",
+      hermesResult.stdout.slice(0, 12000),
+      "```",
+      "",
+      hermesResult.stderr ? "## Stderr\n\n```text\n" + hermesResult.stderr.slice(0, 4000) + "\n```" : ""
+    ].join("\n");
+    const artifactHash = contentHash(`${hermesResult.reportPath}\n${artifactContent}`);
+
+    await db.$transaction(async (tx) => {
+      await tx.agent.update({ where: { id: task.agent!.id }, data: { status: "running", currentTask: task.title, heartbeatAt: now } });
+      await tx.event.create({
+        data: {
+          type: "agent.hermes.started",
+          severity: "info",
+          message: `Hermes Company task started: ${task.agent!.slug}`,
+          agentId: task.agent!.id,
+          projectId: task.projectId ?? undefined,
+          taskId: task.id,
+          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, executedAt: hermesResult.executedAt }
+        }
+      });
+      const artifact = await tx.artifact.upsert({
+        where: { contentHash: artifactHash },
+        update: { title: `${task.agent!.name} Hermes execution output`, path: hermesResult.reportPath, type: "report", agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id },
+        create: { type: "report", title: `${task.agent!.name} Hermes execution output`, path: hermesResult.reportPath, contentHash: artifactHash, restricted: false, agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id }
+      });
+      await tx.task.update({ where: { id: task.id }, data: { status: hermesResult.status === "completed" ? "completed" : "failed", blocker: hermesResult.status === "failed" ? "Hermes Company execution failed" : null, nextAction: hermesResult.status === "completed" ? `Hermes Company execution completed at ${hermesResult.executedAt}` : "Hermes execution log review needed" } });
+      await tx.agent.update({ where: { id: task.agent!.id }, data: { status: hermesResult.status === "completed" ? "idle" : "failed", currentTask: null, heartbeatAt: now } });
+      await tx.event.create({
+        data: {
+          type: hermesResult.status === "completed" ? "agent.hermes.completed" : "agent.hermes.failed",
+          severity: hermesResult.status === "completed" ? "info" : "warning",
+          message: `Hermes Company task ${hermesResult.status}: ${task.agent!.slug}`,
+          agentId: task.agent!.id,
+          projectId: task.projectId ?? undefined,
+          taskId: task.id,
+          artifactId: artifact.id,
+          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, artifactId: artifact.id, executedAt: hermesResult.executedAt }
+        }
+      });
+      await tx.event.create({
+        data: {
+          type: "discord.report.queued",
+          severity: "info",
+          message: `Discord result report queued: ${task.agent!.slug}`,
+          agentId: task.agent!.id,
+          projectId: task.projectId ?? undefined,
+          taskId: task.id,
+          artifactId: artifact.id,
+          metadata: { channel: task.agent!.slug.replace("-agent", ""), message: [`상태: ${hermesResult.status === "completed" ? "완료" : "실패"}`, `작업: ${task.title}`, `에이전트: ${task.agent!.slug}`, `산출물: ${hermesResult.reportPath}`, `다음액션: Ops Console에서 결과 확인`].join("\n"), purpose: "result_report", mode: "hermes_company_bridge" }
+        }
+      });
+    });
+
+    const completedParentTaskIds = await completeFinishedHqParents(task.id, now);
+    return { status: hermesResult.status === "completed" ? "completed" : "skipped", reason: hermesResult.status === "failed" ? "hermes_execution_failed" : undefined, taskId: task.id, agentSlug: task.agent.slug, completedParentTaskIds };
   }
 
   await db.$transaction(async (tx) => {

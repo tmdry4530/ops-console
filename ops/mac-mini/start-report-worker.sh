@@ -12,6 +12,6 @@ if [ -f .env ]; then
 fi
 
 while true; do
-  pnpm worker:agents
-  sleep "${OPS_CONSOLE_AGENT_WORKER_INTERVAL_SEC:-30}"
+  pnpm worker:reports
+  sleep "${OPS_CONSOLE_REPORT_WORKER_INTERVAL_SEC:-20}"
 done

@@ -26,6 +26,7 @@
     "worker:ingest": "tsx src/workers/ingest.ts",
     "worker:commands": "tsx src/workers/commands.ts",
     "worker:agents": "tsx src/workers/agents.ts",
+    "worker:reports": "tsx src/workers/reports.ts",
     "docker:config": "docker compose config"
   },
   "dependencies": {

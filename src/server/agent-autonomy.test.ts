@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planAutonomousTaskRun, shouldCompleteHqParent, type AutonomousTaskRecord } from "./agent-autonomy";
+import { hqParentAgentCompletionState, planAutonomousTaskRun, shouldCompleteHqParent, type AutonomousTaskRecord } from "./agent-autonomy";
 
 const safeTask: AutonomousTaskRecord = {
   id: "task_1",
@@ -107,5 +107,9 @@ describe("planAutonomousTaskRun", () => {
     expect(shouldCompleteHqParent(["completed", "failed"])).toBe(true);
     expect(shouldCompleteHqParent(["completed", "running"])).toBe(false);
     expect(shouldCompleteHqParent([])).toBe(false);
+  });
+
+  it("marks the HQ parent agent idle when the delegated orchestration finishes", () => {
+    expect(hqParentAgentCompletionState()).toEqual({ status: "idle", currentTask: null });
   });
 });
