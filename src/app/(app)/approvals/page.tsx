@@ -2,20 +2,42 @@ import type { Route } from "next";
 import Link from "next/link";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
+import { approvalWhereForCompletionFilter, normalizeApprovalCompletionFilter } from "@/lib/approval-filters";
 import { db } from "@/lib/db";
 import { labelForApprovalType } from "@/lib/korean-labels";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApprovalsPage() {
-  const approvals = await db.approval.findMany({ orderBy: { updatedAt: "desc" }, include: { project: true } });
+type ApprovalsPageProps = {
+  searchParams?: Promise<{ filter?: string }>;
+};
+
+export default async function ApprovalsPage({ searchParams }: ApprovalsPageProps) {
+  const params = await searchParams;
+  const activeFilter = normalizeApprovalCompletionFilter(params?.filter);
+  const approvals = await db.approval.findMany({
+    where: approvalWhereForCompletionFilter(activeFilter),
+    orderBy: { updatedAt: "desc" },
+    include: { project: true }
+  });
 
   return (
     <>
       <div className="page-head">
         <div className="titles">
           <h1>승인</h1>
-          <div className="sub">운영자 결정 · 안전 큐 실행과 수동 처리 액션을 분리합니다.</div>
+          <div className="sub">운영자 결정 · 기본은 미완료만 표시하고 완료된 승인요청은 숨깁니다.</div>
+        </div>
+        <div className="actions" style={{ gap: 8 }}>
+          <Link className={`btn sm ${activeFilter === "incomplete" ? "" : "ghost"}`} href="/approvals">
+            미완료
+          </Link>
+          <Link className={`btn sm ${activeFilter === "completed" ? "" : "ghost"}`} href="/approvals?filter=completed">
+            완료
+          </Link>
+          <Link className={`btn sm ${activeFilter === "all" ? "" : "ghost"}`} href="/approvals?filter=all">
+            전체
+          </Link>
         </div>
       </div>
 
