@@ -7,7 +7,7 @@ import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/lib/db";
 import { HQ_DEPARTMENT_AGENTS } from "@/server/hq-orchestration";
-import { formatDateTimeKo, labelForHealth } from "@/lib/korean-labels";
+import { formatDateTimeKo, labelForAgentWorkMode, labelForHealth } from "@/lib/korean-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
     db.project.findMany({ orderBy: { updatedAt: "desc" }, select: { id: true, name: true, slug: true } })
   ]);
   if (!agent) notFound();
+  const latestWorkEvent = agent.events.find((event) => event.type === "company.task.mirrored" || event.type === "status.ingested");
 
   return (
     <>
@@ -56,6 +57,9 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
               <div style={{ fontSize: 14, fontWeight: 500 }}>{agent.currentTask ?? "대기 중"}</div>
               <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
                 최근 상태 보고: {formatDateTimeKo(agent.heartbeatAt)}
+              </div>
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
+                작업 빈도/모드: {labelForAgentWorkMode(latestWorkEvent?.metadata ?? agent.metadata)}
               </div>
             </div>
           </div>

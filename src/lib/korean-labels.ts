@@ -74,6 +74,18 @@ export function labelForApprovalType(type: string): string {
   return APPROVAL_TYPE_LABELS[type] ?? labelForStatus(type);
 }
 
+export function labelForAgentWorkMode(metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") return "작업 빈도 정보 없음";
+  const item = metadata as Record<string, unknown>;
+  const executionMode = typeof item.executionMode === "string" ? item.executionMode : "";
+  const frequency = typeof item.frequency === "string" ? item.frequency : "";
+  if (executionMode === "hermes_profile_direct_background" && frequency.includes("ad-hoc")) {
+    return "Hermes Company 백그라운드 작업 · 수시 실행";
+  }
+  if (frequency) return `작업 빈도: ${frequency}`;
+  return "작업 빈도 정보 없음";
+}
+
 export function labelForRouteSegment(segment: string): string {
   return ROUTE_SEGMENT_LABELS[segment] ?? labelForStatus(segment);
 }

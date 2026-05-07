@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDateTimeKo,
+  labelForAgentWorkMode,
   labelForApprovalType,
   labelForEventMessage,
   labelForHealth,
@@ -46,6 +47,12 @@ describe("korean-friendly labels", () => {
     expect(labelForEventMessage("Discord report queued: hq")).toBe("Discord 보고 대기열 등록됨: hq");
     expect(labelForEventMessage("Autonomous agent completed task: docs-agent")).toBe("자율 에이전트 작업 완료: docs-agent");
     expect(labelForEventMessage("Autonomous agent requested Ops Console approval: dev-agent")).toBe("자율 에이전트 콘솔 승인 요청: dev-agent");
+  });
+
+  it("formats agent work mode/frequency metadata for operators", () => {
+    expect(labelForAgentWorkMode({ executionMode: "hermes_profile_direct_background", frequency: "ad-hoc background job; not cron" })).toBe("Hermes Company 백그라운드 작업 · 수시 실행");
+    expect(labelForAgentWorkMode({ frequency: "every 60s" })).toBe("작업 빈도: every 60s");
+    expect(labelForAgentWorkMode({})).toBe("작업 빈도 정보 없음");
   });
 
   it("formats timestamps for Korean operators", () => {
