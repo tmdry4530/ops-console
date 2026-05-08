@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { planIdleCompanyWork, standingWorkRunSlug } from "./idle-work-planner";
 
 describe("idle company work planner", () => {
-  it("creates a safe standing-work run when Company has no active autonomous work", () => {
-    const now = new Date("2026-05-08T00:30:00.000Z");
+  it("creates a safe realtime standing-work run when Company has no active autonomous work", () => {
+    const now = new Date("2026-05-08T00:30:45.000Z");
     const plan = planIdleCompanyWork({ activeAutonomousTasks: 0, existingRunSlugs: [] }, now);
 
-    expect(plan?.runSlug).toBe("company-standing-work-20260508-00");
+    expect(plan?.runSlug).toBe("company-standing-work-20260508-003045");
     expect(plan?.parentTask).toMatchObject({
-      slug: "company-standing-work-20260508-00",
-      title: "Company 자동 업무 생성 · 2026-05-08 00:00Z",
+      slug: "company-standing-work-20260508-003045",
+      title: "Company 자동 업무 생성 · 2026-05-08 00:30:45Z",
       status: "running",
       riskLevel: "low",
       nextAction: "자동 생성된 부서별 내부 업무 진행 중"
@@ -28,11 +28,19 @@ describe("idle company work planner", () => {
     expect(plan?.childTasks.find((task) => task.agentSlug === "trading-agent")?.summary).toContain("제출/거래는 하지 않는다");
   });
 
-  it("does not create duplicate standing work for an already-created slot", () => {
-    const now = new Date("2026-05-08T05:59:00.000Z");
+  it("does not create duplicate realtime standing work for the same timestamp", () => {
+    const now = new Date("2026-05-08T05:59:07.000Z");
     const runSlug = standingWorkRunSlug(now);
 
+    expect(runSlug).toBe("company-standing-work-20260508-055907");
     expect(planIdleCompanyWork({ activeAutonomousTasks: 0, existingRunSlugs: [runSlug] }, now)).toBeNull();
+  });
+
+  it("creates another run as soon as previous autonomous work has drained", () => {
+    const previous = standingWorkRunSlug(new Date("2026-05-08T05:59:07.000Z"));
+    const plan = planIdleCompanyWork({ activeAutonomousTasks: 0, existingRunSlugs: [previous] }, new Date("2026-05-08T05:59:08.000Z"));
+
+    expect(plan?.runSlug).toBe("company-standing-work-20260508-055908");
   });
 
   it("does not create extra work while autonomous work is already active", () => {

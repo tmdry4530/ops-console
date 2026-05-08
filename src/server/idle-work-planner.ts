@@ -28,8 +28,6 @@ type StandingDepartment = {
   summary: string;
 };
 
-const STANDING_INTERVAL_HOURS = 6;
-
 const STANDING_DEPARTMENTS: StandingDepartment[] = [
   {
     agentSlug: "main-agent",
@@ -79,19 +77,18 @@ function pad2(value: number) {
   return String(value).padStart(2, "0");
 }
 
-function slotStartHour(now: Date) {
-  return Math.floor(now.getUTCHours() / STANDING_INTERVAL_HOURS) * STANDING_INTERVAL_HOURS;
-}
-
 export function standingWorkRunSlug(now = new Date()): string {
   const year = now.getUTCFullYear();
   const month = pad2(now.getUTCMonth() + 1);
   const day = pad2(now.getUTCDate());
-  return `company-standing-work-${year}${month}${day}-${pad2(slotStartHour(now))}`;
+  const hour = pad2(now.getUTCHours());
+  const minute = pad2(now.getUTCMinutes());
+  const second = pad2(now.getUTCSeconds());
+  return `company-standing-work-${year}${month}${day}-${hour}${minute}${second}`;
 }
 
 function standingWorkTitleTime(now: Date): string {
-  return `${now.getUTCFullYear()}-${pad2(now.getUTCMonth() + 1)}-${pad2(now.getUTCDate())} ${pad2(slotStartHour(now))}:00Z`;
+  return `${now.getUTCFullYear()}-${pad2(now.getUTCMonth() + 1)}-${pad2(now.getUTCDate())} ${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}Z`;
 }
 
 export function planIdleCompanyWork(input: IdleCompanyWorkPlannerInput, now = new Date()): IdleCompanyWorkPlan | null {

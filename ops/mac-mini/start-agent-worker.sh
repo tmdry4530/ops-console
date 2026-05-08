@@ -13,5 +13,5 @@ fi
 
 while true; do
   pnpm worker:agents
-  sleep "${OPS_CONSOLE_AGENT_WORKER_INTERVAL_SEC:-30}"
+  sleep "${OPS_CONSOLE_AGENT_WORKER_INTERVAL_SEC:-2}"
 done
