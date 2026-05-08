@@ -41,3 +41,28 @@ export function shortLog(value: unknown, max = 4000): string {
   const text = typeof value === "string" ? value : value == null ? "" : JSON.stringify(value, null, 2);
   return text.length > max ? `${text.slice(0, max)}\n…[truncated]` : text;
 }
+
+export function reportSummaryFromMarkdown(markdown: string, max = 1200): string {
+  const lines = markdown
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .filter((line) => !line.startsWith("---"))
+    .filter((line) => !line.startsWith("```"));
+
+  const useful = lines
+    .filter((line) => {
+      if (/^title:|^task_id:|^agent:|^risk:|^created_at:|^scope:/i.test(line)) return false;
+      if (/^\|[-:| ]+\|$/.test(line)) return false;
+      return true;
+    })
+    .slice(0, 36)
+    .join("\n");
+
+  return shortLog(useful, max);
+}
+
+export function artifactDigest(artifact: Pick<Artifact, "title" | "path" | "restricted">, preview: string | null, max = 1000): string {
+  const body = preview ? reportSummaryFromMarkdown(preview, max) : artifact.restricted ? "[restricted artifact]" : "[preview unavailable]";
+  return [`**${artifact.title}**`, artifact.path ? `Path: ${artifact.path}` : null, "", body].filter(Boolean).join("\n");
+}

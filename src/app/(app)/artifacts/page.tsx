@@ -1,9 +1,12 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
+import { artifactDigest, artifactPreview } from "@/server/task-observability";
 
 export const dynamic = "force-dynamic";
 
 export default async function ArtifactsPage() {
-  const artifacts = await db.artifact.findMany({ orderBy: { updatedAt: "desc" }, take: 100 });
+  const artifacts = await db.artifact.findMany({ orderBy: { updatedAt: "desc" }, take: 100, include: { task: { select: { id: true, summary: true } }, agent: { select: { slug: true } } } });
+  const previews = new Map(await Promise.all(artifacts.slice(0, 25).map(async (artifact) => [artifact.id, await artifactPreview(artifact, 1800)] as const)));
   return (
     <>
       <div className="page-head">
@@ -31,6 +34,13 @@ export default async function ArtifactsPage() {
                   <td><span className="tag">{art.type}</span></td>
                   <td>
                     <div style={{ fontWeight: 500, color: "var(--text-0)" }}>{art.title}</div>
+                    <div className="muted" style={{ fontSize: 11.5 }}>{art.agent?.slug ?? "unassigned"}</div>
+                    {art.task?.id && <Link className="btn ghost sm" href={`/tasks/${art.task.id}`} style={{ marginTop: 6 }}>작업 상세</Link>}
+                    {(art.task?.summary || previews.get(art.id)) && (
+                      <pre className="codeblock" style={{ marginTop: 8, maxHeight: 220, whiteSpace: "pre-wrap" }}>
+                        {art.task?.summary ?? artifactDigest(art, previews.get(art.id) ?? null, 900)}
+                      </pre>
+                    )}
                   </td>
                   <td className="path-col">
                     {art.restricted ? (

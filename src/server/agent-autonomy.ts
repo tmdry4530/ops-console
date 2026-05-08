@@ -1,8 +1,10 @@
+import { promises as fs } from "node:fs";
 import { db } from "@/lib/db";
 import { contentHash } from "./ingest/hash";
 import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./department-adapters";
 import { hermesBridgeDecision, hermesReportPathForTask, runHermesCompanyTask } from "./hermes-bridge";
 import { planIdleCompanyWork, standingWorkRunSlug } from "./idle-work-planner";
+import { reportSummaryFromMarkdown } from "./task-observability";
 import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, RiskLevel, TaskStatus } from "@prisma/client";
 
 export const AUTONOMOUS_WORK_AGENT_SLUGS = [
@@ -298,6 +300,8 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
       })
     ]);
     const hermesResult = await runHermesCompanyTask(task);
+    const reportMarkdown = await fs.readFile(hermesResult.reportPath, "utf8").catch(() => "");
+    const operatorSummary = reportMarkdown ? reportSummaryFromMarkdown(reportMarkdown, 1400) : reportSummaryFromMarkdown(hermesResult.stdout, 1400);
     const artifactContent = [
       "## Hermes Company Execution Result",
       "",
@@ -323,7 +327,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
         update: { title: `${task.agent!.name} Hermes execution output`, path: hermesResult.reportPath, type: "report", agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id },
         create: { type: "report", title: `${task.agent!.name} Hermes execution output`, path: hermesResult.reportPath, contentHash: artifactHash, restricted: false, agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id }
       });
-      await tx.task.update({ where: { id: task.id }, data: { status: hermesResult.status === "completed" ? "completed" : "failed", blocker: hermesResult.status === "failed" ? "Hermes Company execution failed" : null, nextAction: hermesResult.status === "completed" ? `Hermes Company execution completed at ${hermesResult.executedAt}` : "Hermes execution log review needed" } });
+      await tx.task.update({ where: { id: task.id }, data: { status: hermesResult.status === "completed" ? "completed" : "failed", summary: operatorSummary || task.summary, blocker: hermesResult.status === "failed" ? "Hermes Company execution failed" : null, nextAction: hermesResult.status === "completed" ? `Hermes Company execution completed at ${hermesResult.executedAt}` : "Hermes execution log review needed" } });
       await tx.agent.update({ where: { id: task.agent!.id }, data: { status: hermesResult.status === "completed" ? "idle" : "failed", currentTask: null, heartbeatAt: now } });
       await tx.event.create({
         data: {
@@ -334,7 +338,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
           projectId: task.projectId ?? undefined,
           taskId: task.id,
           artifactId: artifact.id,
-          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, artifactId: artifact.id, executedAt: hermesResult.executedAt }
+          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, artifactId: artifact.id, executedAt: hermesResult.executedAt, stdout: hermesResult.stdout.slice(0, 12000), stderr: hermesResult.stderr.slice(0, 4000), operatorSummary }
         }
       });
       await tx.event.create({
@@ -346,7 +350,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
           projectId: task.projectId ?? undefined,
           taskId: task.id,
           artifactId: artifact.id,
-          metadata: { channel: task.agent!.slug.replace("-agent", ""), message: [`상태: ${hermesResult.status === "completed" ? "완료" : "실패"}`, `작업: ${task.title}`, `에이전트: ${task.agent!.slug}`, `산출물: ${hermesResult.reportPath}`, `다음액션: Ops Console에서 결과 확인`].join("\n"), purpose: "result_report", mode: "hermes_company_bridge" }
+          metadata: { channel: task.agent!.slug.replace("-agent", ""), message: [`상태: ${hermesResult.status === "completed" ? "완료" : "실패"}`, `작업: ${task.title}`, `에이전트: ${task.agent!.slug}`, `핵심: ${(operatorSummary || "상세 요약 없음").replace(/\n+/g, " / ").slice(0, 500)}`, `산출물: ${hermesResult.reportPath}`, `다음액션: Ops Console에서 결과 확인`].join("\n"), purpose: "result_report", mode: "hermes_company_bridge" }
         }
       });
     });
