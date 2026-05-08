@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHermesCompanyTaskPrompt, hermesBridgeDecision, hermesReportPathForTask } from "./hermes-bridge";
+import { buildHermesCompanyTaskPrompt, hermesBridgeDecision, hermesReportPathForTask, shouldPublishCompanyReport } from "./hermes-bridge";
 
 const task = {
   id: "task_1",
@@ -29,6 +29,13 @@ describe("hermes company execution bridge", () => {
     expect(prompt).toContain("Task ID: task_1");
     expect(prompt).toContain("Linear/Vercel 스타일 조사");
     expect(prompt).toContain("Discord research 채널");
+    expect(prompt).toContain("## 핵심 결과");
+    expect(prompt).toContain("operator가 GitHub에서 바로 볼 수 있게");
     expect(prompt).toContain(hermesReportPathForTask(task, "/Users/domclaw/dom-company"));
+  });
+
+  it("publishes report files to the Company repo unless explicitly disabled", () => {
+    expect(shouldPublishCompanyReport({})).toBe(true);
+    expect(shouldPublishCompanyReport({ OPS_AGENT_COMPANY_GIT_PUBLISH_ENABLED: "false" })).toBe(false);
   });
 });

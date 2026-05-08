@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import path from "node:path";
+import * as path from "node:path";
 import type { Artifact, Event } from "@prisma/client";
 
 type JsonRecord = Record<string, unknown>;

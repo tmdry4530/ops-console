@@ -338,7 +338,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
           projectId: task.projectId ?? undefined,
           taskId: task.id,
           artifactId: artifact.id,
-          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, artifactId: artifact.id, executedAt: hermesResult.executedAt, stdout: hermesResult.stdout.slice(0, 12000), stderr: hermesResult.stderr.slice(0, 4000), operatorSummary }
+          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, artifactId: artifact.id, executedAt: hermesResult.executedAt, stdout: hermesResult.stdout.slice(0, 12000), stderr: hermesResult.stderr.slice(0, 4000), operatorSummary, git: hermesResult.git }
         }
       });
       await tx.event.create({
@@ -350,7 +350,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
           projectId: task.projectId ?? undefined,
           taskId: task.id,
           artifactId: artifact.id,
-          metadata: { channel: task.agent!.slug.replace("-agent", ""), message: [`상태: ${hermesResult.status === "completed" ? "완료" : "실패"}`, `작업: ${task.title}`, `에이전트: ${task.agent!.slug}`, `핵심: ${(operatorSummary || "상세 요약 없음").replace(/\n+/g, " / ").slice(0, 500)}`, `산출물: ${hermesResult.reportPath}`, `다음액션: Ops Console에서 결과 확인`].join("\n"), purpose: "result_report", mode: "hermes_company_bridge" }
+          metadata: { channel: task.agent!.slug.replace("-agent", ""), message: [`상태: ${hermesResult.status === "completed" ? "완료" : "실패"}`, `작업: ${task.title}`, `에이전트: ${task.agent!.slug}`, `핵심: ${(operatorSummary || "상세 요약 없음").replace(/\n+/g, " / ").slice(0, 500)}`, `산출물: ${hermesResult.reportPath}`, hermesResult.git?.commit ? `GitHub 반영: ${hermesResult.git.commit}` : `GitHub 반영: ${hermesResult.git?.status ?? "unknown"}`, `다음액션: Ops Console에서 결과 확인`].join("\n"), purpose: "result_report", mode: "hermes_company_bridge" }
         }
       });
     });
