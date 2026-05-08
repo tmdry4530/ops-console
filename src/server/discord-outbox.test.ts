@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDiscordReportPrompt, deadLetterMetadata, isDeadLetterDiscordReport, isSendableDiscordReport } from "./discord-outbox";
+import { buildDiscordReportPrompt, deadLetterMetadata, discordReportCutoffDate, isDeadLetterDiscordReport, isSendableDiscordReport } from "./discord-outbox";
 
 const event = {
   id: "event_1",
@@ -24,5 +24,9 @@ describe("discord report outbox", () => {
     expect(dead).toMatchObject({ deliveryStatus: "dead_letter", deliveryAttempts: 3, deliveryError: "network timeout" });
     expect(isDeadLetterDiscordReport({ ...event, metadata: dead })).toBe(true);
     expect(isSendableDiscordReport({ ...event, metadata: dead })).toBe(false);
+  });
+
+  it("uses a recent cutoff so stale delivered backlog cannot starve fresh reports", () => {
+    expect(discordReportCutoffDate(new Date("2026-05-08T07:00:00.000Z"), 30).toISOString()).toBe("2026-05-08T06:30:00.000Z");
   });
 });

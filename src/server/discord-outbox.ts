@@ -78,9 +78,18 @@ async function sendViaHermes(event: DiscordEvent): Promise<{ status: "completed"
   }
 }
 
+export function discordReportCutoffDate(now = new Date(), maxAgeMinutes = Number(process.env.OPS_DISCORD_OUTBOX_MAX_AGE_MINUTES ?? 30)): Date {
+  return new Date(now.getTime() - maxAgeMinutes * 60 * 1000);
+}
+
 export async function processNextDiscordReport(): Promise<DiscordReportResult> {
   if (process.env.OPS_DISCORD_OUTBOX_ENABLED !== "true") return { status: "skipped", reason: "disabled" };
-  const candidates = await db.event.findMany({ where: { type: "discord.report.queued" }, orderBy: { createdAt: "asc" }, take: 25, select: { id: true, type: true, message: true, metadata: true } });
+  const candidates = await db.event.findMany({
+    where: { type: "discord.report.queued", createdAt: { gte: discordReportCutoffDate() } },
+    orderBy: { createdAt: "asc" },
+    take: 100,
+    select: { id: true, type: true, message: true, metadata: true }
+  });
   const event = candidates.find(isSendableDiscordReport);
   if (!event) return { status: "skipped", reason: "no_sendable_reports" };
 
