@@ -61,22 +61,25 @@ describe("department adapter v1", () => {
     expect(dev.artifact?.content).toContain("Validation Commands");
   });
 
-  it("supports trading bounty scope triage as internal artifact-only work", () => {
+  it("supports trading alt-candidate scoring as internal signal-only work", () => {
     const plan = planDepartmentAdapterRun({
       ...baseTask,
       id: "task_trading",
-      title: "Trading · Web3 bounty scope 점검",
-      summary: "허용된 공개 스코프와 기존 handoff 기준으로 bounty 후보를 정리한다. 제출/거래는 하지 않는다.",
+      title: "Trading · 오를만한 알트 후보 선별",
+      summary: "거래소 데이터의 가격, 거래량, OI, 펀딩비, 롱숏, BTC 상대강도를 기준으로 알트 후보를 점수화한다. 실거래/주문은 하지 않는다.",
       agent: { id: "agent_trading", slug: "trading-agent", name: "Trading Agent" }
     }, new Date("2026-05-08T00:00:00.000Z"));
 
     expect(plan.kind).toBe("artifact_only_execution");
-    expect(plan.capabilityKey).toBe("trading.bounty_scope_triage");
+    expect(plan.capabilityKey).toBe("trading.alt_signal_scoring");
     expect(plan.artifact).toMatchObject({
       type: "report",
-      path: "artifacts/agents/trading-agent/task_trading-trading.bounty_scope_triage.md",
+      path: "artifacts/agents/trading-agent/task_trading-trading.alt_signal_scoring.md",
       restricted: false
     });
+    expect(plan.artifact?.content).toContain("OI");
+    expect(plan.artifact?.content).toContain("펀딩비");
+    expect(plan.artifact?.content).toContain("실거래/주문 금지");
     expect(plan.events.map((event) => event.type)).toContain("agent.adapter.completed");
   });
 });

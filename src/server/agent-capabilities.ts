@@ -120,19 +120,19 @@ export const AGENT_CAPABILITY_SEEDS: AgentCapabilitySeed[] = [
   },
   {
     agentSlug: "trading-agent",
-    capabilityKey: "trading.bounty_scope_triage",
+    capabilityKey: "trading.alt_signal_scoring",
     inputSchema: baseInputSchema,
     outputSchema: artifactOutputSchema,
-    allowedTools: ["repo_read", "scope_review", "artifact_write"],
+    allowedTools: ["exchange_public_data", "repo_read", "artifact_write"],
     maxRisk: "medium",
     expectedArtifactType: "report",
-    successCriteria: ["artifact_created", "scope_limits_called_out", "no_submission_or_trade"],
-    failureModes: ["missing_scope", "unsafe_submission_requested", "secret_like_content"],
-    rollbackOrManualHandoff: "Analyze public/scoped bounty context only; submissions, trades, wallet actions, or disclosures require manual approval.",
+    successCriteria: ["artifact_created", "oi_funding_volume_score_included", "no_live_order_or_investment_claim"],
+    failureModes: ["exchange_data_unavailable", "low_liquidity_universe", "single_factor_signal", "secret_like_content"],
+    rollbackOrManualHandoff: "Signal/recommendation research only; live orders, leverage, wallet actions, or financial commitments require explicit operator approval.",
     requiresApproval: false,
     avgCost: 0,
     avgDuration: 45,
-    keywords: ["trading", "web3", "bounty", "바운티", "scope", "스코프", "security", "poc", "취약점", "audit", "거래", "제출"]
+    keywords: ["trading", "트레이딩", "alt", "알트", "오를", "추천", "signal", "시그널", "oi", "open interest", "funding", "펀딩", "펀비", "long short", "롱숏", "거래량", "상대강도", "crypto", "코인"]
   },
   {
     agentSlug: "main-agent",

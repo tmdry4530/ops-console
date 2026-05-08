@@ -62,8 +62,8 @@ const STANDING_DEPARTMENTS: StandingDepartment[] = [
   {
     agentSlug: "trading-agent",
     department: "trading",
-    title: "Trading · Web3 bounty scope 점검",
-    summary: "허용된 공개 스코프와 기존 handoff 기준으로 Web3 bounty 분석 후보를 정리한다. 제출/거래는 하지 않는다."
+    title: "Trading · 오를만한 알트 후보 선별",
+    summary: "거래소 공개 데이터의 가격/거래량/OI/펀딩비/롱숏/상대강도를 기준으로 오를만한 알트 후보를 점수화한다. 실거래/주문은 하지 않는다."
   },
   {
     agentSlug: "docs-agent",

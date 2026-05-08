@@ -39,7 +39,7 @@ export const HQ_DEPARTMENT_AGENTS: DepartmentAgent[] = [
   { slug: "projects-agent", name: "Projects Agent", department: "projects", role: "프로젝트 보드/마일스톤/blocker", channel: "projects", keywords: ["프로젝트", "일정", "마일스톤", "milestone", "blocker", "블로커", "보드", "관리"] },
   { slug: "dev-agent", name: "Dev Agent", department: "dev", role: "구현/자동화/검증", channel: "dev", keywords: ["구현", "코드", "개발", "dev", "자동화", "테스트", "검증", "배포", "앱", "콘솔"] },
   { slug: "content-agent", name: "Content Agent", department: "content", role: "카피/랜딩/아웃리치", channel: "content", keywords: ["콘텐츠", "content", "카피", "랜딩", "아웃리치", "메일", "글", "포스트", "홍보"] },
-  { slug: "trading-agent", name: "Trading Agent", department: "trading", role: "Web3 bounty/security/PoC/report", channel: "trading", keywords: ["trading", "트레이딩", "web3", "bounty", "바운티", "보안", "security", "poc", "취약점", "audit", "감사"] },
+  { slug: "trading-agent", name: "Trading Agent", department: "trading", role: "Alt signal/OI/funding/liquidity watchlist", channel: "trading", keywords: ["trading", "트레이딩", "alt", "알트", "오를", "추천", "signal", "시그널", "oi", "funding", "펀딩", "펀비", "롱숏", "거래량", "crypto", "코인"] },
   { slug: "docs-agent", name: "Docs Agent", department: "docs", role: "문서/로그/최종 보고", channel: "docs", keywords: ["문서", "docs", "가이드", "로그", "보고", "리포트", "정리", "아카이브"] }
 ];
 
