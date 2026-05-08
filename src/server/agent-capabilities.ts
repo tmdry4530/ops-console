@@ -119,6 +119,22 @@ export const AGENT_CAPABILITY_SEEDS: AgentCapabilitySeed[] = [
     keywords: ["projects", "pipeline", "파이프라인", "운영표", "next_action", "reply_status", "파일럿", "prospect", "후보"]
   },
   {
+    agentSlug: "trading-agent",
+    capabilityKey: "trading.bounty_scope_triage",
+    inputSchema: baseInputSchema,
+    outputSchema: artifactOutputSchema,
+    allowedTools: ["repo_read", "scope_review", "artifact_write"],
+    maxRisk: "medium",
+    expectedArtifactType: "report",
+    successCriteria: ["artifact_created", "scope_limits_called_out", "no_submission_or_trade"],
+    failureModes: ["missing_scope", "unsafe_submission_requested", "secret_like_content"],
+    rollbackOrManualHandoff: "Analyze public/scoped bounty context only; submissions, trades, wallet actions, or disclosures require manual approval.",
+    requiresApproval: false,
+    avgCost: 0,
+    avgDuration: 45,
+    keywords: ["trading", "web3", "bounty", "바운티", "scope", "스코프", "security", "poc", "취약점", "audit", "거래", "제출"]
+  },
+  {
     agentSlug: "main-agent",
     capabilityKey: "main.task_triage",
     inputSchema: baseInputSchema,

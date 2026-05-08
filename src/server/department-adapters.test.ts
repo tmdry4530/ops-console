@@ -60,4 +60,23 @@ describe("department adapter v1", () => {
     expect(dev.capabilityKey).toBe("dev.validation_proposal");
     expect(dev.artifact?.content).toContain("Validation Commands");
   });
+
+  it("supports trading bounty scope triage as internal artifact-only work", () => {
+    const plan = planDepartmentAdapterRun({
+      ...baseTask,
+      id: "task_trading",
+      title: "Trading · Web3 bounty scope 점검",
+      summary: "허용된 공개 스코프와 기존 handoff 기준으로 bounty 후보를 정리한다. 제출/거래는 하지 않는다.",
+      agent: { id: "agent_trading", slug: "trading-agent", name: "Trading Agent" }
+    }, new Date("2026-05-08T00:00:00.000Z"));
+
+    expect(plan.kind).toBe("artifact_only_execution");
+    expect(plan.capabilityKey).toBe("trading.bounty_scope_triage");
+    expect(plan.artifact).toMatchObject({
+      type: "report",
+      path: "artifacts/agents/trading-agent/task_trading-trading.bounty_scope_triage.md",
+      restricted: false
+    });
+    expect(plan.events.map((event) => event.type)).toContain("agent.adapter.completed");
+  });
 });

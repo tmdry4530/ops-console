@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { contentHash } from "./ingest/hash";
 import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./department-adapters";
 import { hermesBridgeDecision, hermesReportPathForTask, runHermesCompanyTask } from "./hermes-bridge";
+import { planIdleCompanyWork, standingWorkRunSlug } from "./idle-work-planner";
 import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, RiskLevel, TaskStatus } from "@prisma/client";
 
 export const AUTONOMOUS_WORK_AGENT_SLUGS = [
@@ -413,7 +414,97 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
   return { status: "completed", taskId: task.id, agentSlug: task.agent.slug, completedParentTaskIds };
 }
 
+export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status: "created" | "skipped"; reason?: string; runSlug?: string; childTaskCount?: number }> {
+  const autonomousAgentSlugs = [...AUTONOMOUS_WORK_AGENT_SLUGS];
+  const activeAutonomousTasks = await db.task.count({
+    where: {
+      status: { in: ["queued", "running", "waiting_approval", "needs_changes"] },
+      agent: { slug: { in: autonomousAgentSlugs } }
+    }
+  });
+  const runSlug = standingWorkRunSlug(now);
+  const existingRuns = await db.task.findMany({ where: { slug: runSlug }, select: { slug: true } });
+  const plan = planIdleCompanyWork({ activeAutonomousTasks, existingRunSlugs: existingRuns.map((task) => task.slug) }, now);
+
+  if (!plan) {
+    return { status: "skipped", reason: activeAutonomousTasks > 0 ? "active_autonomous_work_exists" : "standing_work_already_created", runSlug };
+  }
+
+  const agents = await db.agent.findMany({
+    where: { slug: { in: ["hq-agent", ...autonomousAgentSlugs] } },
+    select: { id: true, slug: true }
+  });
+  const agentIdBySlug = new Map(agents.map((agent) => [agent.slug, agent.id]));
+  const hqAgentId = agentIdBySlug.get("hq-agent");
+  if (!hqAgentId) return { status: "skipped", reason: "hq_agent_missing", runSlug: plan.runSlug };
+
+  await db.$transaction(async (tx) => {
+    const parentTask = await tx.task.create({
+      data: {
+        slug: plan.parentTask.slug,
+        title: plan.parentTask.title,
+        status: plan.parentTask.status,
+        riskLevel: plan.parentTask.riskLevel,
+        summary: plan.parentTask.summary,
+        nextAction: plan.parentTask.nextAction,
+        agentId: hqAgentId
+      }
+    });
+    await tx.agent.update({ where: { id: hqAgentId }, data: { status: "running", currentTask: plan.parentTask.title, heartbeatAt: now } });
+    await tx.event.create({
+      data: {
+        type: "company.idle_work.created",
+        severity: "info",
+        message: `Company standing work created: ${plan.runSlug}`,
+        agentId: hqAgentId,
+        taskId: parentTask.id,
+        metadata: { runSlug: plan.runSlug, childTaskCount: plan.childTasks.length, mode: "idle_work_scheduler" }
+      }
+    });
+
+    for (const child of plan.childTasks) {
+      const agentId = agentIdBySlug.get(child.agentSlug);
+      if (!agentId) continue;
+      const childTask = await tx.task.create({
+        data: {
+          slug: child.slug,
+          title: child.title,
+          status: child.status,
+          riskLevel: child.riskLevel,
+          summary: child.summary,
+          nextAction: child.nextAction,
+          agentId
+        }
+      });
+      await tx.agent.update({ where: { id: agentId }, data: { status: "running", currentTask: child.title, heartbeatAt: now } });
+      await tx.event.create({
+        data: {
+          type: "hq.delegation.created",
+          severity: "info",
+          message: `Standing work delegated: ${child.agentSlug}`,
+          agentId,
+          taskId: childTask.id,
+          metadata: { orchestrationRunId: plan.runSlug, parentTaskId: parentTask.id, childTaskId: childTask.id, department: child.agentSlug.replace("-agent", ""), mode: "idle_work_scheduler" }
+        }
+      });
+      await tx.event.create({
+        data: {
+          type: "hq.delegation.started",
+          severity: "info",
+          message: `Standing work started: ${child.title}`,
+          agentId,
+          taskId: childTask.id,
+          metadata: { parentTaskId: parentTask.id, runSlug: plan.runSlug, mode: "idle_work_scheduler" }
+        }
+      });
+    }
+  });
+
+  return { status: "created", runSlug: plan.runSlug, childTaskCount: plan.childTasks.length };
+}
+
 export async function processNextAutonomousTask(now = new Date()): Promise<AutonomousTaskRunResult> {
+  await ensureIdleCompanyWork(now);
   const task = await db.task.findFirst({
     where: {
       status: "running",

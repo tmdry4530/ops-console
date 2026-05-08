@@ -84,6 +84,10 @@ function outputForCapability(capabilityKey: string, task: DepartmentAdapterTask,
     return `${header}\n## Pipeline Operations Checklist\n\n- Review stage, reply_status, owner, and next_action for each prospect.\n- Separate internal cleanup from external/manual outreach.\n- Flag stale A-group items and identify B-group preparation needs.\n- Keep CSV writes as a proposal unless explicitly approved.\n\n## Proposed Next Action\n\nProduce a pipeline status artifact with blockers, owner, and next manual gate.\n`;
   }
 
+  if (capabilityKey === "trading.bounty_scope_triage") {
+    return `${header}\n## Bounty Scope Checklist\n\n- Review only public or operator-provided scope.\n- Separate in-scope candidates, out-of-scope items, and missing-context blockers.\n- Do not submit reports, trade, sign wallet messages, or disclose findings externally.\n- Escalate any PoC execution, disclosure, or platform submission to Ops Console approval.\n\n## Proposed Next Action\n\nProduce a scope triage artifact with candidate programs, evidence gaps, and manual gates.\n`;
+  }
+
   return `${header}\n## Triage Checklist\n\n- Extract owner, blocker, and next action.\n- Flag stale running tasks.\n- Create follow-up tasks only when ownership is clear.\n`;
 }
 
