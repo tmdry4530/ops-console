@@ -19,14 +19,13 @@ describe("idle company work planner", () => {
       "research-agent",
       "projects-agent",
       "dev-agent",
-      "content-agent",
-      "trading-agent",
       "docs-agent"
     ]);
     expect(plan?.childTasks.every((task) => task.status === "running" && task.riskLevel === "low")).toBe(true);
-    expect(plan?.childTasks.find((task) => task.agentSlug === "content-agent")?.summary).toContain("외부 발송은 하지 않는다");
-    expect(plan?.childTasks.find((task) => task.agentSlug === "trading-agent")?.summary).toContain("OI/펀딩비");
-    expect(plan?.childTasks.find((task) => task.agentSlug === "trading-agent")?.summary).toContain("실거래/주문은 하지 않는다");
+    expect(plan?.childTasks.find((task) => task.agentSlug === "main-agent")?.summary).toContain("ops-console/alpha-terminal로만");
+    expect(plan?.childTasks.find((task) => task.agentSlug === "main-agent")?.summary).not.toContain("CapyFi");
+    expect(plan?.childTasks.find((task) => task.agentSlug === "projects-agent")?.summary).toContain("ops-console/alpha-terminal만");
+    expect(plan?.childTasks.some((task) => ["content-agent", "trading-agent"].includes(task.agentSlug))).toBe(false);
   });
 
   it("does not create duplicate realtime standing work for the same timestamp", () => {
