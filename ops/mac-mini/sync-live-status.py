@@ -15,25 +15,9 @@ APP_DIR = Path("/Users/domclaw/ops-console")
 STATUS_DIR = APP_DIR / "ops" / "status"
 
 SERVICES = [
-    # Only surface actual work/monitoring agents in the Ops Console agent view.
-    # Gateway/proxy/app infrastructure remains checked by healthcheck/logs, but is
-    # intentionally not presented as an operator-manageable "agent".
-    {
-        "agent_id": "auth-manager",
-        "project_id": "auth-platform",
-        "task_id": "auth-health-monitor",
-        "label": "ai.hermes.auth-manager.health",
-        "summary": "Auth manager provider health monitor launchd service",
-        "next_action": "Monitor provider health and OAuth alerts",
-    },
-    {
-        "agent_id": "crypto-signal",
-        "project_id": "crypto-signal-platform",
-        "task_id": "crypto-signal-collector",
-        "label": "ai.hermes.crypto-signal.collector",
-        "summary": "Crypto signal collector launchd service",
-        "next_action": "Monitor source quality and gated signal output",
-    },
+    # Company Ops Console scope is intentionally limited to ops-console and
+    # alpha-terminal. Auth/OAuth and Crypto Signal/Market are separate systems
+    # and must not be re-ingested as Company projects or tasks.
 ]
 
 

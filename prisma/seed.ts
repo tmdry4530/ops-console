@@ -1,4 +1,4 @@
-import { PrismaClient, type ApprovalType, type ArtifactType, type PolicyAction, type RiskLevel, Prisma } from "@prisma/client";
+import { PrismaClient, type PolicyAction, type RiskLevel, Prisma } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { contentHash } from "../src/server/ingest/hash";
 import { AGENT_CAPABILITY_SEEDS } from "../src/server/agent-capabilities";
@@ -21,8 +21,7 @@ const companyDepartmentAgents = [
   { slug: "research-agent", name: "Research Agent", department: "research", repoPath: "research/", focus: "후보 조사, scope, 중복/근거 확인" },
   { slug: "projects-agent", name: "Projects Agent", department: "projects", repoPath: "projects/", focus: "프로젝트 보드, milestone, blocker 관리" },
   { slug: "dev-agent", name: "Dev Agent", department: "dev", repoPath: "dev/", focus: "구현, 자동화, 검증 노트" },
-  { slug: "content-agent", name: "Content Agent", department: "content", repoPath: "content/", focus: "랜딩, 아웃리치, 카피 초안" },
-  { slug: "trading-agent", name: "Trading Agent", department: "trading", repoPath: "trading/", focus: "Web3 bounty/security 실행, PoC, draft report" },
+  { slug: "content-agent", name: "Content Agent", department: "content", repoPath: "content/", focus: "operator가 명시 요청한 콘텐츠 문서 작성만 수행" },
   { slug: "docs-agent", name: "Docs Agent", department: "docs", repoPath: "docs/", focus: "시스템 문서, 로그, 아카이브" }
 ];
 
@@ -113,82 +112,8 @@ async function main() {
     });
   }
 
-  const bountyAgent = await prisma.agent.upsert({
-    where: { slug: "trading-bounty" },
-    update: { health: "ok" },
-    create: { slug: "trading-bounty", name: "Trading Bounty Agent", status: "waiting_approval", health: "ok", currentTask: "capyfi-oracle-report" }
-  });
-
-  const bountyProject = await prisma.project.upsert({
-    where: { slug: "capyfi-bounty" },
-    update: {},
-    create: { slug: "capyfi-bounty", name: "CapyFi Bounty Submission", status: "active", nextAction: "Manual Immunefi submission after logged-in scope confirmation", blocker: "Logged-in Immunefi scope confirmation required" }
-  });
-
-  const bountyTask = await prisma.task.upsert({
-    where: { slug: "capyfi-oracle-report" },
-    update: { riskLevel: "medium", agentId: bountyAgent.id, projectId: bountyProject.id },
-    create: { slug: "capyfi-oracle-report", title: "CapyFi oracle report approval", status: "waiting_approval", riskLevel: "medium", agentId: bountyAgent.id, projectId: bountyProject.id }
-  });
-
-  const artifacts: Array<{ type: ArtifactType; title: string; path: string; commitSha: string }> = [
-    { type: "report", title: "CapyFi submission-ready report", path: "trading/reports/CapyFi-ChainlinkPriceOracle-StaleRound-Submission-Ready.md", commitSha: "9fba2ad" },
-    { type: "poc", title: "CapyFi stale round PoC", path: "trading/reports/CapyFi-ChainlinkPriceOracle-StaleRound-PoC.md", commitSha: "9fba2ad" }
-  ];
-
-  for (const artifact of artifacts) {
-    await prisma.artifact.upsert({
-      where: { contentHash: safeHashForFile(artifact.path) },
-      update: { path: artifact.path, projectId: bountyProject.id, taskId: bountyTask.id, agentId: bountyAgent.id, commitSha: artifact.commitSha },
-      create: { ...artifact, contentHash: safeHashForFile(artifact.path), projectId: bountyProject.id, taskId: bountyTask.id, agentId: bountyAgent.id }
-    });
-  }
-
-  await prisma.approval.upsert({
-    where: { externalKey: "capyfi-bounty-submission" },
-    update: { riskLevel: "medium", projectId: bountyProject.id, taskId: bountyTask.id },
-    create: {
-      externalKey: "capyfi-bounty-submission",
-      type: "bounty_submission" as ApprovalType,
-      status: "pending",
-      riskLevel: "medium",
-      title: "Approve CapyFi bounty submission",
-      summary: "Submission-ready report and PoC are prepared; manual Immunefi submission remains required.",
-      projectId: bountyProject.id,
-      taskId: bountyTask.id,
-      requestedBy: bountyAgent.id
-    }
-  });
-
-  const revenueProject = await prisma.project.upsert({
-    where: { slug: "revenue-manual-outreach" },
-    update: {},
-    create: { slug: "revenue-manual-outreach", name: "Revenue Manual Outreach", status: "active", revenueType: "manual_outreach", nextAction: "Draft outreach requires operator review and manual send" }
-  });
-
-  const revenueTask = await prisma.task.upsert({
-    where: { slug: "revenue-outreach-review" },
-    update: { projectId: revenueProject.id, riskLevel: "medium" },
-    create: { slug: "revenue-outreach-review", title: "Review manual outreach draft", status: "waiting_approval", riskLevel: "medium", projectId: revenueProject.id }
-  });
-
-  await prisma.approval.upsert({
-    where: { externalKey: "revenue-manual-outreach" },
-    update: { projectId: revenueProject.id, taskId: revenueTask.id },
-    create: {
-      externalKey: "revenue-manual-outreach",
-      type: "revenue_outreach" as ApprovalType,
-      status: "pending",
-      riskLevel: "medium",
-      title: "Approve revenue manual outreach",
-      summary: "Manual outreach path exists; external sends remain manual handoff only.",
-      projectId: revenueProject.id,
-      taskId: revenueTask.id
-    }
-  });
-
   await prisma.event.create({
-    data: { type: "seed.completed", severity: "info", message: "Production-private seed completed.", actorId: operator.id, projectId: bountyProject.id, taskId: bountyTask.id }
+    data: { type: "seed.completed", severity: "info", message: "Production-private seed completed with Company scope restricted to ops-console/alpha-terminal.", actorId: operator.id }
   });
 }
 
