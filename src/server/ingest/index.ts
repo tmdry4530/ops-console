@@ -7,9 +7,6 @@ import { parseStatusJson } from "./status-json";
 
 export const ingestionSources = [
   "ops/status/*.json",
-  "projects/saas/data/revenue_pipeline.csv",
-  "trading/status/*.md",
-  "trading/reports/*.md",
   "hq/decisions/Company-Decision-Log.md",
   "docs/INDEX.md",
   "git log summary"
@@ -79,13 +76,8 @@ async function discoverCandidatesInRoot(root: string): Promise<Candidate[]> {
   for (const filePath of await filesInDirectory(statusDir, ".json")) {
     candidates.push({ type: "status_file", filePath, displayPath: root === "." ? path.relative(root, filePath) : filePath });
   }
-  if (await pathExists(path.join(root, "projects/saas/data/revenue_pipeline.csv"))) candidates.push(candidate(root, "projects/saas/data/revenue_pipeline.csv", "csv"));
-  for (const filePath of await filesInDirectory(path.join(root, "trading/status"), ".md")) {
-    candidates.push({ type: "status_file", filePath, displayPath: root === "." ? path.relative(root, filePath) : filePath });
-  }
-  for (const filePath of await filesInDirectory(path.join(root, "trading/reports"), ".md")) {
-    candidates.push({ type: "report", filePath, displayPath: root === "." ? path.relative(root, filePath) : filePath });
-  }
+  // Cancelled/excluded lanes are intentionally not ingested into Company Ops Console.
+  // Active Company scope is limited to ops-console and alpha-terminal.
   if (await pathExists(path.join(root, "hq/decisions/Company-Decision-Log.md"))) candidates.push(candidate(root, "hq/decisions/Company-Decision-Log.md", "decision_log"));
   if (await pathExists(path.join(root, "docs/INDEX.md"))) candidates.push(candidate(root, "docs/INDEX.md", "other"));
   return candidates;
