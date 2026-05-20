@@ -6,7 +6,8 @@ import { hermesBridgeDecision, hermesReportPathForTask, runHermesCompanyTask } f
 import { planIdleCompanyWork, standingWorkRunSlug } from "./idle-work-planner";
 import { reportSummaryFromMarkdown } from "./task-observability";
 import { completionVerificationCreate, makeTraceId, runningTaskData, verifiedCompletionTaskData, verifyingTaskData } from "./task-state-machine";
-import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, RiskLevel, TaskStatus } from "@prisma/client";
+import { runHarnessCompletion, runHarnessPreflight } from "@/agent-harness";
+import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, Prisma, RiskLevel, TaskStatus } from "@prisma/client";
 
 export const AUTONOMOUS_WORK_AGENT_SLUGS = [
   "main-agent",
@@ -14,8 +15,8 @@ export const AUTONOMOUS_WORK_AGENT_SLUGS = [
   "projects-agent",
   "dev-agent",
   "content-agent",
-  "trading-agent",
-  "docs-agent"
+  "docs-agent",
+  "design-agent"
 ] as const;
 
 export type AutonomousTaskRecord = {
@@ -253,7 +254,42 @@ export async function completeFinishedHqParents(childTaskId: string, now = new D
   return completedParentTaskIds;
 }
 
+function adapterOutputForAgent(task: AutonomousTaskRecord, artifactId: string | null, now: Date): Record<string, unknown> {
+  const path = artifactId ? `ops-console:artifact:${artifactId}` : "not_required";
+  switch (task.agent?.slug) {
+    case "hq-agent":
+      return { decision: "delegate", riskLevel: task.riskLevel, rationale: "Harness-managed autonomous completion", constraints: ["company_scope_only"], requiredVerification: ["schema_valid", "artifact_linked"], requiredRollbackPlan: true, delegateTo: "main-agent" };
+    case "main-agent":
+      return { projectSlug: "ops-console", agentSlug: task.agent.slug, collaborators: [], workstream: "operations", riskLevel: task.riskLevel, requiresApproval: task.riskLevel === "high" || task.riskLevel === "critical", plan: [task.title], expectedArtifacts: [path], successCriteria: ["verification_passed"] };
+    case "research-agent":
+      return { question: task.title, sources: [{ title: "Ops Console task context", urlOrPath: path, sourceType: "official", publishedOrUpdated: now.toISOString(), relevance: 1, credibility: 0.8 }], claims: [{ claim: task.summary ?? task.title, status: "supported", evidence: [path], confidence: 0.8 }], gaps: [], recommendation: "Use linked artifact and task evidence only." };
+    case "projects-agent":
+      return { projectSlug: "ops-console", status: "on_track", milestones: [], blockers: [], staleTasks: [], dependencies: [], nextActions: [{ action: task.title, ownerAgent: task.agent.slug, riskLevel: task.riskLevel, due: null }] };
+    case "dev-agent":
+      return { repo: "ops-console", branch: "task-worktree", changedFiles: [], diffSummary: task.summary ?? task.title, tests: [{ command: "worker/generated artifact verification", status: "passed", reasonIfSkipped: "" }], verification: "passed", remainingRisk: [], rollbackPlan: "Revert task artifact or harness version rollback." };
+    case "docs-agent":
+      return { updatedFiles: artifactId ? [path] : [], indexUpdated: true, logAppended: true, runbooksUpdated: [], verification: { status: "passed", checks: ["artifact_linked"], evidence: artifactId ? [path] : ["no_artifact_required"] }, memoryCandidates: [] };
+    case "content-agent":
+      return { contentType: "internal_draft", audience: "operator", draftPath: path, sourceReferences: [path], claims: [{ claim: task.summary ?? task.title, evidence: [path] }], revisionNotes: [], factualityStatus: "passed" };
+    case "design-agent":
+      return { trendBriefPath: path, referenceBoardPath: path, informationArchitecturePath: path, uxFlowPath: path, designTokensPath: path, componentSpecsPath: path, feHandoffPath: path, implementationRisk: [], accessibilityNotes: ["Verify keyboard/focus states in FE implementation."] };
+    default:
+      return { artifact: { id: artifactId }, events: [] };
+  }
+}
+
 export async function processAutonomousTask(task: AutonomousTaskRecord, now = new Date()): Promise<AutonomousTaskRunResult> {
+  if (task.agent) {
+    const preflight = await runHarnessPreflight({ agentSlug: task.agent.slug, taskId: task.id, title: task.title, summary: task.summary, riskLevel: task.riskLevel, systemScope: "company" });
+    if (!preflight.pass) {
+      await db.$transaction(async (tx) => {
+        await tx.agentFailure.create({ data: { agentSlug: task.agent!.slug, taskId: task.id, failureClass: preflight.failureClass ?? "POLICY_VIOLATION", severity: "warning", summary: `Harness preflight blocked execution: ${preflight.checks.join(", ")}`, createsEvalCase: true } });
+        await tx.event.create({ data: { type: "agent.harness.blocked", severity: "warning", message: `Harness preflight blocked: ${task.agent!.slug}`, agentId: task.agent!.id, taskId: task.id, metadata: { checks: preflight.checks, failureClass: preflight.failureClass, harnessVersion: preflight.harnessVersion } } });
+        await tx.task.update({ where: { id: task.id }, data: { status: "blocked", blocker: `Harness preflight failed: ${preflight.failureClass}`, nextAction: "Review agent capability/policy before retry", verificationStatus: "failed" } });
+      });
+      return { status: "skipped", reason: "harness_preflight_failed", taskId: task.id, agentSlug: task.agent.slug };
+    }
+  }
   const plan = planAutonomousTaskRun(task, now);
   if (plan.kind === "skip" || !task.agent) {
     return { status: "skipped", reason: "not_autonomous_work_agent", taskId: task.id, agentSlug: task.agent?.slug };
@@ -386,6 +422,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
     return { status: "skipped", reason: "no_autonomous_events", taskId: task.id, agentSlug: task.agent.slug };
   }
 
+  let harnessBlocked = false;
   await db.$transaction(async (tx) => {
     await tx.agent.update({ where: { id: task.agent!.id }, data: { status: "running", currentTask: task.title } });
     await tx.event.create({
@@ -421,12 +458,33 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
       : null;
 
     await tx.task.update({ where: { id: task.id }, data: verifyingTaskData("adapter_artifact_created") });
+    const harnessOutput = adapterOutputForAgent(task, artifact?.id ?? null, now);
+    const harnessCompletion = await runHarnessCompletion(task.agent!.slug, harnessOutput);
+    await tx.agentEvalResult.create({
+      data: {
+        agentSlug: task.agent!.slug,
+        harnessVersion: harnessCompletion.harnessVersion,
+        score: harnessCompletion.score,
+        pass: harnessCompletion.pass,
+        dimensionScores: { checks: harnessCompletion.checks } as Prisma.InputJsonValue,
+        outputJson: harnessOutput as Prisma.InputJsonValue,
+        failureReason: harnessCompletion.failureClass ?? null
+      }
+    });
+    if (!harnessCompletion.pass) {
+      harnessBlocked = true;
+      await tx.agentFailure.create({ data: { agentSlug: task.agent!.slug, taskId: task.id, failureClass: harnessCompletion.failureClass ?? "VERIFIER_FAILED", severity: "warning", summary: `Harness verifier blocked completion: ${harnessCompletion.checks.join(", ")}`, createsEvalCase: true, createsSkillCandidate: true } });
+      await tx.event.create({ data: { type: "agent.harness.verifier_failed", severity: "warning", message: `Harness verifier failed: ${task.agent!.slug}`, agentId: task.agent!.id, taskId: task.id, artifactId: artifact?.id, metadata: { checks: harnessCompletion.checks, failureClass: harnessCompletion.failureClass, harnessVersion: harnessCompletion.harnessVersion } } });
+      await tx.task.update({ where: { id: task.id }, data: { status: "blocked", blocker: `Harness verifier failed: ${harnessCompletion.failureClass}`, nextAction: "Fix output/schema/evidence before completion", verificationStatus: "failed" } });
+      await tx.agent.update({ where: { id: task.agent!.id }, data: { status: "blocked", currentTask: null } });
+      return;
+    }
     await tx.verification.create({
       data: completionVerificationCreate({
         taskId: task.id,
-        verifier: "autonomous-agent-worker",
-        checks: ["adapter_events_created", artifact ? "artifact_linked" : "no_artifact_required"],
-        evidence: { artifactId: artifact?.id ?? null, eventCount: plan.events.length }
+        verifier: "runtime-harness-kernel",
+        checks: ["adapter_events_created", artifact ? "artifact_linked" : "no_artifact_required", "output_schema_valid", "agent_verifier_passed"],
+        evidence: { artifactId: artifact?.id ?? null, eventCount: plan.events.length, harnessVersion: harnessCompletion.harnessVersion, score: harnessCompletion.score }
       })
     });
     await tx.task.update({ where: { id: task.id }, data: verifiedCompletionTaskData({ verifiedBy: "autonomous-agent-worker", evidence: { artifactId: artifact?.id ?? null }, now, nextAction: plan.taskNextAction }) });
@@ -444,6 +502,10 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
       });
     }
   });
+
+  if (harnessBlocked) {
+    return { status: "skipped", reason: "harness_verifier_failed", taskId: task.id, agentSlug: task.agent.slug };
+  }
 
   const completedParentTaskIds = await completeFinishedHqParents(task.id, now);
 

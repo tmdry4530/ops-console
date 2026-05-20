@@ -496,6 +496,123 @@ model EvalResult {
   createdAt   DateTime    @default(now())
 }
 
+model AgentHarness {
+  id                String   @id @default(cuid())
+  agentSlug         String
+  version           String
+  specPath          String
+  capabilityPath    String
+  inputSchemaPath   String?
+  outputSchemaPath  String
+  contextPackPath   String?
+  memoryPackPath    String?
+  skillPackPath     String?
+  rubricPath        String?
+  evalSuitePath     String?
+  verifierPath      String?
+  failurePolicyPath String?
+  status            String   @default("active")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  @@unique([agentSlug, version])
+  @@index([agentSlug, status])
+}
+
+model AgentHarnessVersion {
+  id           String   @id @default(cuid())
+  agentSlug    String
+  version      String
+  status       String   @default("active")
+  rollbackFrom String?
+  promotedAt   DateTime?
+  createdAt    DateTime @default(now())
+  metadata     Json     @default("{}")
+
+  @@unique([agentSlug, version])
+  @@index([agentSlug, status])
+}
+
+model AgentEvalCase {
+  id           String   @id @default(cuid())
+  agentSlug    String
+  title        String
+  inputJson    Json
+  expectedJson Json?
+  rubricJson   Json     @default("{}")
+  sourceTaskId String?
+  difficulty   String?
+  tags         String[] @default([])
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+
+  @@index([agentSlug, status])
+}
+
+model AgentEvalResult {
+  id              String   @id @default(cuid())
+  evalCaseId      String?
+  agentSlug       String
+  harnessVersion  String
+  model           String?
+  score           Float
+  dimensionScores Json     @default("{}")
+  outputJson      Json?
+  pass            Boolean
+  failureReason   String?
+  costUsd         Decimal?
+  latencyMs       Int?
+  createdAt       DateTime @default(now())
+
+  @@index([agentSlug, createdAt])
+  @@index([evalCaseId])
+}
+
+model AgentSkillPack {
+  id        String   @id @default(cuid())
+  agentSlug String
+  version   String
+  path      String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+}
+
+model AgentMemoryPack {
+  id        String   @id @default(cuid())
+  agentSlug String
+  version   String
+  path      String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+}
+
+model AgentVerifier {
+  id        String   @id @default(cuid())
+  agentSlug String
+  version   String
+  path      String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now())
+}
+
+model AgentFailure {
+  id                      String   @id @default(cuid())
+  agentSlug               String
+  taskId                  String?
+  traceId                 String?
+  failureClass            String
+  severity                String
+  summary                 String
+  proposedFix             String?
+  createsEvalCase         Boolean  @default(false)
+  createsSkillCandidate   Boolean  @default(false)
+  createsMemoryCandidate  Boolean  @default(false)
+  createdAt               DateTime @default(now())
+
+  @@index([agentSlug, failureClass])
+  @@index([taskId])
+}
+
 model MemoryWrite {
   id          String      @id @default(cuid())
   target      String
