@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
 import { requiresManualHandoff } from "@/lib/auth";
 import { evaluateExternalSendPermission } from "./external-send-policy";
-import type { ProjectStatus } from "@prisma/client";
+import { commandScopeDecision } from "./command-scope-policy";
+import { completionVerificationCreate, verifiedCompletionTaskData } from "./task-state-machine";
+import type { ProjectStatus, SystemScope } from "@prisma/client";
 
 export type CommandExecutionStatus = "completed" | "failed" | "skipped";
 
@@ -17,6 +19,8 @@ export type QueuedCommandRecord = {
   actionType: string;
   riskLevel: string;
   approvalId: string | null;
+  systemScope: SystemScope;
+  traceId: string | null;
   payload: unknown;
 };
 
@@ -73,6 +77,22 @@ function isMetadataRecord(metadata: unknown): metadata is Record<string, unknown
 
 export async function processCommand(command: QueuedCommandRecord, port: CommandExecutionPort): Promise<CommandExecutionResult> {
   const payload = readPayload(command.payload);
+  const scopeDecision = commandScopeDecision({ actionType: command.actionType, riskLevel: command.riskLevel, systemScope: command.systemScope, payload: command.payload });
+  if (!scopeDecision.allowed) {
+    const failed = result("failed", scopeDecision.reason);
+    await port.failCommand(command.id, failed);
+    await port.createCommandEvent({
+      type: "command.blocked_scope_boundary",
+      severity: "warning",
+      message: `Command blocked by scope boundary: ${scopeDecision.reason}`,
+      commandQueueId: command.id,
+      approvalId: command.approvalId,
+      projectId: payload.projectId,
+      taskId: payload.taskId,
+      metadata: { actionType: command.actionType, riskLevel: command.riskLevel, reason: scopeDecision.reason, systemScope: command.systemScope }
+    });
+    return failed;
+  }
 
   if (command.actionType.startsWith("agent_control_")) {
     if (!payload.agentId || !payload.action) {
@@ -245,7 +265,7 @@ export async function processNextQueuedCommand(port: CommandExecutionPort = pris
   const command = await db.commandQueue.findFirst({
     where: { status: "queued" },
     orderBy: { createdAt: "asc" },
-    select: { id: true, actionType: true, riskLevel: true, approvalId: true, payload: true }
+    select: { id: true, actionType: true, riskLevel: true, approvalId: true, systemScope: true, traceId: true, payload: true }
   });
 
   if (!command) {
@@ -280,7 +300,27 @@ export const prismaCommandExecutionPort: CommandExecutionPort = {
     await db.approval.update({ where: { id }, data: { status: "completed", decisionNote: `Executed by Ops Console worker at ${executionResult.executedAt}` } });
   },
   async completeTask(id, executionResult) {
-    await db.task.update({ where: { id }, data: { status: "completed", blocker: null, nextAction: `Command executed at ${executionResult.executedAt}` } });
+    await db.$transaction(async (tx) => {
+      const task = await tx.task.findUnique({ where: { id }, select: { id: true, title: true, traceId: true, systemScope: true } });
+      if (!task) return;
+      const verification = await tx.verification.create({
+        data: completionVerificationCreate({
+          taskId: id,
+          verifier: "command-executor",
+          checks: ["command_executed", executionResult.reason ?? "command_completed"],
+          evidence: { executedAt: executionResult.executedAt, mode: executionResult.mode ?? "ops_console_worker" },
+          traceId: task.traceId ?? undefined
+        })
+      });
+      await tx.task.update({
+        where: { id },
+        data: verifiedCompletionTaskData({
+          verifiedBy: "command-executor",
+          evidence: { verificationId: verification.id, executedAt: executionResult.executedAt },
+          nextAction: `Command executed at ${executionResult.executedAt}`
+        })
+      });
+    });
   },
   async updateProjectAfterCommand(id, actionType, result) {
     await db.project.update({ where: { id }, data: projectUpdateForCommand(actionType, result) });

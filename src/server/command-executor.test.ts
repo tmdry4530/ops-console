@@ -51,6 +51,8 @@ const queuedCommand: QueuedCommandRecord = {
   actionType: "internal_sync",
   riskLevel: "low",
   approvalId: "approval_1",
+  systemScope: "company",
+  traceId: "trace_1",
   payload: { projectId: "project_1", taskId: "task_1" }
 };
 
@@ -148,6 +150,28 @@ describe("processCommand", () => {
     ]);
     expect(calls[2]?.[1]).toMatchObject({ type: "external_send.dry_run_started" });
     expect(calls[7]?.[1]).toMatchObject({ type: "external_send.dry_run_completed" });
+  });
+
+  it("blocks cross-scope commands before execution", async () => {
+    const { calls, port } = makePort();
+
+    const result = await processCommand({ ...queuedCommand, payload: { projectId: "project_1", taskId: "task_1", targetScope: "auth" } }, port);
+
+    expect(result).toMatchObject({ status: "failed", reason: "cross_scope_denied:company->auth" });
+    expect(calls.map(([name]) => name)).toEqual(["failCommand", "createCommandEvent"]);
+    expect(calls[1]?.[1]).toMatchObject({
+      type: "command.blocked_scope_boundary",
+      metadata: { reason: "cross_scope_denied:company->auth", systemScope: "company" }
+    });
+  });
+
+  it("blocks secret-like command paths before execution", async () => {
+    const { calls, port } = makePort();
+
+    const result = await processCommand({ ...queuedCommand, payload: { projectId: "project_1", taskId: "task_1", targetScope: "company", path: "/Users/domclaw/ops-console/.env" } }, port);
+
+    expect(result).toMatchObject({ status: "failed", reason: "secret_like_path_blocked" });
+    expect(calls.map(([name]) => name)).toEqual(["failCommand", "createCommandEvent"]);
   });
 
   it("refuses high-risk commands even from an allowlisted operator network", async () => {
