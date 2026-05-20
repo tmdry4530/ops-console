@@ -56,7 +56,7 @@ export type AgentOpsMonitorItem = {
   recentTasks: Task[];
   recentEvents: Event[];
   recentArtifacts: Artifact[];
-  taskCounts: Record<"queued" | "running" | "waiting_approval" | "needs_changes" | "completed" | "failed", number>;
+  taskCounts: Partial<Record<TaskStatus, number>> & Record<"queued" | "running" | "waiting_approval" | "needs_changes" | "completed" | "failed", number>;
 };
 
 export type CompanyOpsMonitor = {

@@ -5,6 +5,7 @@ import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./depar
 import { hermesBridgeDecision, hermesReportPathForTask, runHermesCompanyTask } from "./hermes-bridge";
 import { planIdleCompanyWork, standingWorkRunSlug } from "./idle-work-planner";
 import { reportSummaryFromMarkdown } from "./task-observability";
+import { completionVerificationCreate, makeTraceId, runningTaskData, verifiedCompletionTaskData, verifyingTaskData } from "./task-state-machine";
 import type { AgentStatus, ApprovalStatus, ApprovalType, EventSeverity, RiskLevel, TaskStatus } from "@prisma/client";
 
 export const AUTONOMOUS_WORK_AGENT_SLUGS = [
@@ -221,9 +222,18 @@ export async function completeFinishedHqParents(childTaskId: string, now = new D
 
     const parentTasks = await db.task.findMany({ where: { id: { in: [parentTaskId] } }, select: { agentId: true } });
     const parentAgentIds = parentTasks.map((task) => task.agentId).filter((agentId): agentId is string => Boolean(agentId));
+    await db.task.update({ where: { id: parentTaskId }, data: verifyingTaskData("hq_children_terminal") });
+    await db.verification.create({
+      data: completionVerificationCreate({
+        taskId: parentTaskId,
+        verifier: "hq-orchestration-monitor",
+        checks: ["all_child_tasks_terminal"],
+        evidence: { childTaskCount: childTaskIds.length, completedAt: now.toISOString() }
+      })
+    });
     await db.task.update({
       where: { id: parentTaskId },
-      data: { status: "completed", blocker: null, nextAction: `HQ delegated work completed at ${now.toISOString()}` }
+      data: verifiedCompletionTaskData({ verifiedBy: "hq-orchestration-monitor", evidence: { childTaskCount: childTaskIds.length }, now, nextAction: `HQ delegated work completed at ${now.toISOString()}` })
     });
     if (parentAgentIds.length > 0) {
       await db.agent.updateMany({ where: { id: { in: parentAgentIds } }, data: hqParentAgentCompletionState() });
@@ -285,7 +295,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
     const plannedReportPath = hermesReportPathForTask(task);
     const startedAt = now.toISOString();
     await db.$transaction([
-      db.task.update({ where: { id: task.id }, data: { status: "running", blocker: null, nextAction: `Hermes Company execution running since ${startedAt}` } }),
+      db.task.update({ where: { id: task.id }, data: runningTaskData("autonomous-agent-worker", now) }),
       db.agent.update({ where: { id: task.agent!.id }, data: { status: "running", currentTask: task.title, heartbeatAt: now } }),
       db.event.create({
         data: {
@@ -327,7 +337,20 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
         update: { title: `${task.agent!.name} Hermes execution output`, path: hermesResult.reportPath, type: "report", agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id },
         create: { type: "report", title: `${task.agent!.name} Hermes execution output`, path: hermesResult.reportPath, contentHash: artifactHash, restricted: false, agentId: task.agent!.id, projectId: task.projectId ?? undefined, taskId: task.id }
       });
-      await tx.task.update({ where: { id: task.id }, data: { status: hermesResult.status === "completed" ? "completed" : "failed", summary: operatorSummary || task.summary, blocker: hermesResult.status === "failed" ? "Hermes Company execution failed" : null, nextAction: hermesResult.status === "completed" ? `Hermes Company execution completed at ${hermesResult.executedAt}` : "Hermes execution log review needed" } });
+      await tx.verification.create({
+        data: completionVerificationCreate({
+          taskId: task.id,
+          verifier: "autonomous-agent-worker",
+          checks: ["hermes_subprocess_finished", "artifact_linked", hermesResult.status === "completed" ? "worker_report_available" : "worker_report_failed"],
+          evidence: { artifactId: artifact.id, reportPath: hermesResult.reportPath, status: hermesResult.status, gitCommit: hermesResult.git?.commit ?? null }
+        })
+      });
+      await tx.task.update({
+        where: { id: task.id },
+        data: hermesResult.status === "completed"
+          ? verifiedCompletionTaskData({ verifiedBy: "autonomous-agent-worker", evidence: { artifactId: artifact.id, reportPath: hermesResult.reportPath }, now, summary: operatorSummary || task.summary, nextAction: `Hermes Company execution verified at ${hermesResult.executedAt}` })
+          : { status: "failed", verificationStatus: "failed", summary: operatorSummary || task.summary, blocker: "Hermes Company execution failed", nextAction: "Hermes execution log review needed" }
+      });
       await tx.agent.update({ where: { id: task.agent!.id }, data: { status: hermesResult.status === "completed" ? "idle" : "failed", currentTask: null, heartbeatAt: now } });
       await tx.event.create({
         data: {
@@ -397,7 +420,16 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
         })
       : null;
 
-    await tx.task.update({ where: { id: task.id }, data: { status: plan.taskStatus, blocker: null, nextAction: plan.taskNextAction } });
+    await tx.task.update({ where: { id: task.id }, data: verifyingTaskData("adapter_artifact_created") });
+    await tx.verification.create({
+      data: completionVerificationCreate({
+        taskId: task.id,
+        verifier: "autonomous-agent-worker",
+        checks: ["adapter_events_created", artifact ? "artifact_linked" : "no_artifact_required"],
+        evidence: { artifactId: artifact?.id ?? null, eventCount: plan.events.length }
+      })
+    });
+    await tx.task.update({ where: { id: task.id }, data: verifiedCompletionTaskData({ verifiedBy: "autonomous-agent-worker", evidence: { artifactId: artifact?.id ?? null }, now, nextAction: plan.taskNextAction }) });
     await tx.agent.update({ where: { id: task.agent!.id }, data: { status: plan.agentStatus, currentTask: null } });
     for (const event of plan.events.slice(1)) {
       await tx.event.create({
@@ -442,6 +474,7 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
   const hqAgentId = agentIdBySlug.get("hq-agent");
   if (!hqAgentId) return { status: "skipped", reason: "hq_agent_missing", runSlug: plan.runSlug };
 
+  const parentTraceId = makeTraceId({ systemScope: "company", projectSlug: "ops-console", agentSlug: "hq-agent", date: now, entropy: plan.runSlug });
   await db.$transaction(async (tx) => {
     const parentTask = await tx.task.create({
       data: {
@@ -451,7 +484,10 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
         riskLevel: plan.parentTask.riskLevel,
         summary: plan.parentTask.summary,
         nextAction: plan.parentTask.nextAction,
-        agentId: hqAgentId
+        agentId: hqAgentId,
+        traceId: parentTraceId,
+        systemScope: "company",
+        planJson: { mode: "idle_work_scheduler", runSlug: plan.runSlug, childTaskCount: plan.childTasks.length }
       }
     });
     await tx.agent.update({ where: { id: hqAgentId }, data: { status: "running", currentTask: plan.parentTask.title, heartbeatAt: now } });
@@ -462,13 +498,14 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
         message: `Company standing work created: ${plan.runSlug}`,
         agentId: hqAgentId,
         taskId: parentTask.id,
-        metadata: { runSlug: plan.runSlug, childTaskCount: plan.childTasks.length, mode: "idle_work_scheduler" }
+        metadata: { runSlug: plan.runSlug, childTaskCount: plan.childTasks.length, mode: "idle_work_scheduler", traceId: parentTraceId }
       }
     });
 
     for (const child of plan.childTasks) {
       const agentId = agentIdBySlug.get(child.agentSlug);
       if (!agentId) continue;
+      const childTraceId = makeTraceId({ systemScope: "company", projectSlug: "ops-console", agentSlug: child.agentSlug, date: now, entropy: child.slug });
       const childTask = await tx.task.create({
         data: {
           slug: child.slug,
@@ -477,7 +514,11 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
           riskLevel: child.riskLevel,
           summary: child.summary,
           nextAction: child.nextAction,
-          agentId
+          agentId,
+          parentTaskId: parentTask.id,
+          traceId: childTraceId,
+          systemScope: "company",
+          planJson: { mode: "idle_work_scheduler", runSlug: plan.runSlug, parentTaskId: parentTask.id, department: child.agentSlug.replace("-agent", "") }
         }
       });
       await tx.agent.update({ where: { id: agentId }, data: { status: "running", currentTask: child.title, heartbeatAt: now } });
@@ -488,7 +529,7 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
           message: `Standing work delegated: ${child.agentSlug}`,
           agentId,
           taskId: childTask.id,
-          metadata: { orchestrationRunId: plan.runSlug, parentTaskId: parentTask.id, childTaskId: childTask.id, department: child.agentSlug.replace("-agent", ""), mode: "idle_work_scheduler" }
+          metadata: { orchestrationRunId: plan.runSlug, parentTaskId: parentTask.id, childTaskId: childTask.id, department: child.agentSlug.replace("-agent", ""), mode: "idle_work_scheduler", traceId: childTraceId }
         }
       });
       await tx.event.create({
@@ -498,7 +539,7 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
           message: `Standing work started: ${child.title}`,
           agentId,
           taskId: childTask.id,
-          metadata: { parentTaskId: parentTask.id, runSlug: plan.runSlug, mode: "idle_work_scheduler" }
+          metadata: { parentTaskId: parentTask.id, runSlug: plan.runSlug, mode: "idle_work_scheduler", traceId: childTraceId }
         }
       });
     }

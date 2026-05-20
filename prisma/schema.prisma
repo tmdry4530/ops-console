@@ -32,12 +32,24 @@ enum ProjectStatus {
 }
 
 enum TaskStatus {
-  queued
-  running
+  created
+  classified
+  planned
   waiting_approval
+  queued
+  claimed
+  running
+  tool_wait
+  verifying
+  blocked
+  retry_scheduled
   needs_changes
   completed
   failed
+  cancelled
+  expired
+  rolled_back
+  archived
 }
 
 enum ApprovalStatus {
@@ -104,6 +116,31 @@ enum CommandStatus {
   cancelled
 }
 
+enum SystemScope {
+  company
+  crypto
+  auth
+  alpha
+  personal
+  infra
+}
+
+enum VerificationStatus {
+  pending
+  passed
+  failed
+  inconclusive
+  not_required
+}
+
+enum RunStatus {
+  queued
+  running
+  completed
+  failed
+  cancelled
+}
+
 model User {
   id        String    @id @default(cuid())
   email     String    @unique
@@ -131,6 +168,7 @@ model Agent {
   health      HealthStatus @default(unknown)
   heartbeatAt DateTime?
   currentTask String?
+  systemScope SystemScope  @default(company)
   metadata    Json         @default("{}")
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -138,6 +176,7 @@ model Agent {
   artifacts    Artifact[]
   events       Event[]
   capabilities AgentCapability[]
+  runs         Run[]
 }
 
 model AgentCapability {
@@ -171,6 +210,7 @@ model Project {
   revenueType String?
   nextAction  String?
   blocker     String?
+  systemScope SystemScope   @default(company)
   metadata    Json          @default("{}")
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -181,23 +221,51 @@ model Project {
 }
 
 model Task {
-  id          String     @id @default(cuid())
-  slug        String     @unique
-  title       String
-  status      TaskStatus @default(queued)
-  riskLevel   RiskLevel  @default(low)
-  summary     String?
-  blocker     String?
-  nextAction  String?
-  agentId     String?
-  projectId   String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  agent       Agent?     @relation(fields: [agentId], references: [id])
-  project     Project?   @relation(fields: [projectId], references: [id])
-  approvals   Approval[]
-  artifacts   Artifact[]
-  events      Event[]
+  id                 String             @id @default(cuid())
+  slug               String             @unique
+  title              String
+  status             TaskStatus         @default(queued)
+  statusReason       String?
+  planJson           Json               @default("{}")
+  currentStep        String?
+  attempt            Int                @default(0)
+  maxAttempts        Int                @default(3)
+  claimedBy          String?
+  claimedAt          DateTime?
+  heartbeatAt        DateTime?
+  leaseExpiresAt     DateTime?
+  idempotencyKey     String?
+  traceId            String?
+  systemScope        SystemScope        @default(company)
+  verificationStatus VerificationStatus @default(pending)
+  rollbackPlan       String?
+  costEstimateUsd    Float              @default(0)
+  costActualUsd      Float              @default(0)
+  tokenInput         Int                @default(0)
+  tokenOutput        Int                @default(0)
+  riskLevel          RiskLevel          @default(low)
+  summary            String?
+  blocker            String?
+  nextAction         String?
+  agentId            String?
+  projectId          String?
+  parentTaskId       String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  agent              Agent?             @relation(fields: [agentId], references: [id])
+  project            Project?           @relation(fields: [projectId], references: [id])
+  parentTask         Task?              @relation("TaskParent", fields: [parentTaskId], references: [id])
+  childTasks         Task[]             @relation("TaskParent")
+  approvals          Approval[]
+  artifacts          Artifact[]
+  events             Event[]
+  runs               Run[]
+  verifications      Verification[]
+
+  @@index([traceId])
+  @@index([systemScope, status])
+  @@index([claimedBy, leaseExpiresAt])
+  @@index([verificationStatus, status])
 }
 
 model Approval {
@@ -211,6 +279,9 @@ model Approval {
   decisionNote    String?
   manualReportId  String?
   requestedBy     String?
+  systemScope     SystemScope    @default(company)
+  traceId         String?
+  rollbackPlan    String?
   projectId       String?
   taskId          String?
   createdAt       DateTime       @default(now())
@@ -229,6 +300,9 @@ model Artifact {
   url               String?
   repo              String?
   commitSha         String?
+  diffHash          String?
+  traceId           String?
+  systemScope       SystemScope  @default(company)
   contentHash       String       @unique
   restricted        Boolean      @default(false)
   restrictionReason String?
@@ -248,6 +322,8 @@ model CommandQueue {
   actionType   String
   status       CommandStatus @default(queued)
   riskLevel    RiskLevel     @default(low)
+  traceId      String?
+  systemScope  SystemScope   @default(company)
   payload      Json          @default("{}")
   result       Json?
   approvalId   String?
@@ -263,6 +339,7 @@ model Policy {
   action      PolicyAction
   riskLevel   RiskLevel    @default(low)
   description String
+  systemScope SystemScope  @default(company)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -272,6 +349,8 @@ model Event {
   type           String
   severity       EventSeverity  @default(info)
   message        String
+  traceId        String?
+  systemScope    SystemScope    @default(company)
   metadata       Json           @default("{}")
   actorId        String?
   agentId        String?
@@ -288,4 +367,140 @@ model Event {
   approval       Approval?      @relation(fields: [approvalId], references: [id])
   artifact       Artifact?      @relation(fields: [artifactId], references: [id])
   commandQueue   CommandQueue?  @relation(fields: [commandQueueId], references: [id])
+}
+
+model Run {
+  id           String    @id @default(cuid())
+  taskId       String?
+  agentId      String?
+  agentSlug    String
+  profile      String
+  model        String?
+  status       RunStatus @default(running)
+  traceId      String?
+  systemScope  SystemScope @default(company)
+  startedAt    DateTime  @default(now())
+  endedAt      DateTime?
+  inputTokens  Int       @default(0)
+  outputTokens Int       @default(0)
+  costUsd      Float     @default(0)
+  latencyMs    Int       @default(0)
+  metadata     Json      @default("{}")
+  task         Task?     @relation(fields: [taskId], references: [id])
+  agent        Agent?    @relation(fields: [agentId], references: [id])
+  steps        Step[]
+
+  @@index([traceId])
+  @@index([taskId, status])
+}
+
+model Step {
+  id            String    @id @default(cuid())
+  runId         String
+  index         Int
+  kind          String
+  status        RunStatus @default(running)
+  inputSummary  String?
+  outputSummary String?
+  artifactPath  String?
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  run           Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  toolCalls     ToolCall[]
+  modelCalls    ModelCall[]
+
+  @@unique([runId, index])
+}
+
+model ToolCall {
+  id         String    @id @default(cuid())
+  stepId     String
+  toolName   String
+  riskLevel  RiskLevel @default(low)
+  argsHash   String?
+  outputHash String?
+  durationMs Int       @default(0)
+  status     RunStatus @default(completed)
+  createdAt  DateTime  @default(now())
+  step       Step      @relation(fields: [stepId], references: [id], onDelete: Cascade)
+}
+
+model ModelCall {
+  id           String    @id @default(cuid())
+  stepId       String
+  provider     String?
+  model        String
+  inputTokens  Int       @default(0)
+  outputTokens Int       @default(0)
+  cacheTokens  Int       @default(0)
+  costUsd      Float     @default(0)
+  latencyMs    Int       @default(0)
+  status       RunStatus @default(completed)
+  createdAt    DateTime  @default(now())
+  step         Step      @relation(fields: [stepId], references: [id], onDelete: Cascade)
+}
+
+model Verification {
+  id         String             @id @default(cuid())
+  taskId     String
+  verifier   String
+  status     VerificationStatus
+  checks     Json               @default("[]")
+  evidence   Json               @default("{}")
+  traceId    String?
+  createdAt  DateTime           @default(now())
+  task       Task               @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, status])
+  @@index([traceId])
+}
+
+model Incident {
+  id          String       @id @default(cuid())
+  type        String
+  severity    EventSeverity @default(warning)
+  status      String       @default("open")
+  title       String
+  summary     String
+  traceId     String?
+  systemScope SystemScope  @default(company)
+  taskId      String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model ScheduledRun {
+  id          String       @id @default(cuid())
+  jobId       String
+  jobName     String?
+  profile     String
+  status      RunStatus
+  failureClass String?
+  traceId     String?
+  systemScope SystemScope  @default(company)
+  startedAt   DateTime     @default(now())
+  endedAt     DateTime?
+  metadata    Json         @default("{}")
+
+  @@index([profile, status])
+  @@index([failureClass])
+}
+
+model EvalResult {
+  id          String      @id @default(cuid())
+  taskId      String?
+  agentSlug   String?
+  dimensions  Json        @default("{}")
+  traceId     String?
+  systemScope SystemScope @default(company)
+  createdAt   DateTime    @default(now())
+}
+
+model MemoryWrite {
+  id          String      @id @default(cuid())
+  target      String
+  summary     String
+  traceId     String?
+  systemScope SystemScope @default(company)
+  createdAt   DateTime    @default(now())
 }
