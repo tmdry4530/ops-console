@@ -103,3 +103,11 @@ Passed:
 - Autonomous worker now runs harness preflight before execution and output schema/verifier gate before `completed`.
 - Agent Performance API added at `/api/agents/performance` for Control Center quality dashboard integration.
 - Validation passed: prisma validate/generate, typecheck, full vitest suite (94 tests), lint (existing font warning only), production build.
+## 2026-05-20 — Agent Harness P2
+
+- Added agent quality dashboard data to `/agents` using `/api/agents/performance`.
+- Added P2 policy helpers for quality bands, rollback decisions, failure feedback routing, and weekly regression run slugs.
+- Added rollback API: `POST /api/agents/harness/rollback`.
+- Added weekly regression API/script: `POST /api/agents/harness/regression/run` and `src/agent-harness/runWeeklyRegressionEval.ts`.
+- Failure feedback loop routes failures into spec patch / skill candidate / memory candidate / eval case flags and creates regression eval cases for schema/verifier failures.
+- Verification: lint passed with existing font warning, tests 98 passed, build passed.

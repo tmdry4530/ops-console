@@ -4,6 +4,7 @@ import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { formatTimeKo, labelForHealth, labelForStatus } from "@/lib/korean-labels";
 import { getCompanyOpsMonitor, type AgentRuntimeState } from "@/server/ops-monitor";
+import { getAgentPerformance } from "@/server/agent-performance";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,11 @@ function runtimeKind(runtime: AgentRuntimeState) {
 
 export default async function AgentsPage() {
   const monitor = await getCompanyOpsMonitor();
+  const performance = await getAgentPerformance(30);
+  const performanceBySlug = new Map<string, (typeof performance.agents)[number]>(performance.agents.map((agent) => [agent.agentSlug, agent]));
+  const regressionCount = performance.agents.filter((agent) => agent.qualityBand === "regression").length;
+  const watchCount = performance.agents.filter((agent) => agent.qualityBand === "watch").length;
+  const avgScore = performance.agents.length === 0 ? 0 : performance.agents.reduce((sum, agent) => sum + (agent.evalScore ?? 0), 0) / performance.agents.length;
 
   return (
     <>
@@ -47,8 +53,26 @@ export default async function AgentsPage() {
         <div className="span-2"><MetricCard label="보고 대기" value={String(monitor.totals.queuedReports)} delta="outbox" /></div>
       </div>
 
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-head">
+          <div className="title">Agent Harness 품질 대시보드</div>
+          <div className="sub">· 30일 eval · rollback gate · weekly regression 대상</div>
+          <div className="right"><span className="tag">평균 {(avgScore * 100).toFixed(0)}%</span></div>
+        </div>
+        <div className="card-body">
+          <div className="grid-12">
+            <div className="span-3 muted">regression: <strong style={{ color: regressionCount > 0 ? "var(--danger)" : "var(--text-0)" }}>{regressionCount}</strong></div>
+            <div className="span-3 muted">watch: <strong style={{ color: watchCount > 0 ? "var(--warn)" : "var(--text-0)" }}>{watchCount}</strong></div>
+            <div className="span-3 muted">eval cases: <strong style={{ color: "var(--text-0)" }}>{performance.agents.reduce((sum, agent) => sum + agent.evalCount, 0)}</strong></div>
+            <div className="span-3 muted">API: <code>/api/agents/performance</code></div>
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
-        {monitor.agents.map((item) => (
+        {monitor.agents.map((item) => {
+          const perf = performanceBySlug.get(item.agent.slug);
+          return (
           <Link key={item.agent.id} href={`/agents/${item.agent.id}`} className="agent-card" style={{ textDecoration: "none" }}>
             <div className="head">
               <div className="avatar" style={{ background: "var(--bg-3)" }}>{item.agent.name[0]}</div>
@@ -82,8 +106,15 @@ export default async function AgentsPage() {
             <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>
               queued {item.taskCounts.queued} · running {item.taskCounts.running} · wait {item.taskCounts.waiting_approval} · failed {item.taskCounts.failed}
             </div>
+            {perf ? (
+              <div className="muted" style={{ fontSize: 11.5, marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+                harness {perf.harnessVersion} · quality <strong style={{ color: perf.qualityBand === "regression" ? "var(--danger)" : perf.qualityBand === "watch" ? "var(--warn)" : "var(--text-0)" }}>{perf.qualityBand}</strong> · eval {perf.evalCount} · pass {perf.evalPassRate == null ? "n/a" : `${Math.round(perf.evalPassRate * 100)}%`}
+                {perf.rollback.required ? <div style={{ color: "var(--danger)", marginTop: 4 }}>rollback 필요 → {perf.rollback.targetVersion}</div> : null}
+              </div>
+            ) : null}
           </Link>
-        ))}
+          );
+        })}
       </div>
     </>
   );
