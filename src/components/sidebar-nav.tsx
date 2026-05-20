@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Icons } from "./icons";
 
 const items = [
+  { key: "control", label: "Control", icon: Icons.dashboard, href: "/control" },
   { key: "dashboard", label: "대시보드", icon: Icons.dashboard, href: "/dashboard" },
   { key: "approvals", label: "승인", icon: Icons.approvals, href: "/approvals" },
   { key: "agents", label: "에이전트", icon: Icons.agents, href: "/agents" },
@@ -26,7 +27,7 @@ export function SidebarNav({ pendingCount }: { pendingCount: number }) {
   return (
     <nav className="nav">
       <div className="nav-section">
-        <div className="nav-section-label">워크스페이스</div>
+        <div className="nav-section-label">운영 표면</div>
         {items.map((it) => (
           <Link key={it.key} href={it.href as never} className={`nav-item ${active(it.href) ? "active" : ""}`}>
             <span className="nav-icon">{it.icon}</span>

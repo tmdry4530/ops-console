@@ -1,5 +1,25 @@
 # Progress
 
+## 2026-05-20 — Hermes Workspace retired; Company-native monitor/manage surface
+
+- Retired Hermes Workspace from live Company operation: launchd service removed, active path removed, Company Router `workspace` service removed, and `/workspace` + `/operations` now return `410 retired_surface`.
+- Added `src/server/local-system-monitor.ts` and `GET /api/control/local-systems` for active system contracts without `hermes-workspace`.
+- Extended `/control` with `Company-native Monitor / Manage`, showing system scope, state, route, reference pattern, risk gate, and operator action.
+- Preserved useful Workspace structure as reference-only IA in dom-company docs; Ops Console DB/API remains canonical.
+- Verification passed: focused tests, typecheck, lint warning-only, build, runtime smoke for `/control`, `/api/control/local-systems`, router `/api/services`, and retired routes.
+
+## 2026-05-14 — Workspace console commands/agents read-only bridge
+
+- Added read-only ops-console bridge collectors/routes for command queue and active agents:
+  - `GET /api/bridge/commands?limit=N`
+  - `GET /api/bridge/agents?limit=N`
+- Payloads expose only normalized safe fields and omit command `payload`/`result` plus agent `metadata`.
+- Added Workspace proxy collectors/routes:
+  - `GET /api/company-console/commands?limit=N`
+  - `GET /api/company-console/agents?limit=N`
+- Extended Workspace `company_console` dashboard card with read-only `Command queue` and `Active agents` panels.
+- Verification passed: focused bridge tests, full ops-console tests 23 files / 82 tests, typecheck, lint with existing font warning only, Prisma validate, build, docker config; full Workspace tests 105 files / 679 tests, build, temp loopback smoke for summary/approvals/tasks/events/commands/agents, direct Workspace collector smoke for commands/agents. No production restart/deploy or routing change.
+
 ## 2026-05-05
 
 - Re-read `AGENTS.md` and `.codex/goals/company-ops-console-production.md`.
@@ -95,3 +115,106 @@ Passed:
 - Moved operational runbooks into `docs/operations/`.
 - Kept only `README.md` and `AGENTS.md` at repo root for standard discovery and agent loading.
 - Updated `docs/INDEX.md` and `README.md` to point to the new locations.
+
+## 2026-05-09 — Dev automation/validation hardening
+
+- Hardened `src/server/task-observability.ts` artifact preview allowlist matching so paths must be the exact allowed root or a descendant, preventing prefix collisions such as `/Users/domclaw/ops-console-archive` from being treated as `/Users/domclaw/ops-console`.
+- Added regression coverage in `src/server/task-observability.test.ts` for allowed descendants, sibling-prefix denial, and blocked preview behavior.
+- Verification passed: `pnpm install --frozen-lockfile`, `pnpm lint` (existing font warning only), `pnpm typecheck`, `pnpm test`, `pnpm prisma:validate`, `pnpm build`, `pnpm docker:config`.
+
+## 2026-05-14 — Company worker handoff bridge
+
+- Connected Ops Console Hermes execution to dom-company's safe worker handoff runner (`scripts/company_worker_handoff.py`) instead of invoking the `company` Discord gateway profile directly.
+- Added `design-agent` to seed data, autonomous worker routing, HQ orchestration, idle standing work, capability registry, and agent ordering.
+- Removed standalone `trading-agent` from supported autonomous/Hermes routing; trading channel/context can remain in Company Discord, but no worker profile is launched from Ops Console.
+- Hermes bridge now writes an Ops Console task-card prompt under `projects/task-cards/ops-console-<task>.md` and stores worker output under `<role>/ops-console-runs/<task>.md` with the dom-company runner's `.run.json` sidecar.
+- Applied live DB seed so `design-agent` exists in the running Ops Console database.
+- Restarted live app and agent-worker LaunchAgents; `/api/health` returned OK afterward.
+- Verification passed: `pnpm lint` (existing font warning only), `pnpm typecheck`, `pnpm test` (22 files, 76 tests), `pnpm prisma:validate`, `pnpm build`, `pnpm docker:config`, `pnpm prisma:seed`, live `/api/health`.
+
+## 2026-05-14 — Hermes task detail observability UI
+
+- Upgraded `/tasks/[id]` so Hermes/Company worker runs show report path, `.run.json` sidecar, `output_mode`, return code, stderr count, git-publish state, bridge stdout, separated Hermes CLI transcript, and artifact previews.
+- Added `hermesRunSidecars`/sidecar path helpers to `src/server/task-observability.ts` so worker-authored reports and `<output>.stdout.log` are visible from the console without mixing transcript into the report.
+- Added regression coverage for `.run.json` and `stdout_log_path` handling.
+- Restarted the live app LaunchAgent and verified the known design-agent smoke task page renders the new sections with the private operator header.
+- Verification passed: targeted task-observability test, full `pnpm test` (22 files, 78 tests), `pnpm typecheck`, `pnpm lint` (existing font warning only), `pnpm prisma:validate`, `pnpm build`, `pnpm docker:config`, live `/api/health`.
+
+## 2026-05-14 — Company Kanban DB adapter
+
+- Added `dom-company/scripts/company_kanban.py`, a namespaced Company Kanban adapter for `~/.hermes/kanban.db` because the installed Hermes CLI currently has no native `hermes kanban` command.
+- Ops Console Hermes bridge now builds Kanban payloads and syncs status transitions: `ready` before handoff, `running` during handoff, `review` on success, and `blocked` on failure.
+- Worker success intentionally does not mark Kanban `done`; `main`, `project`, or `hq` review remains required.
+- `/tasks/[id]` now surfaces Kanban sync metadata beside report/run/transcript metadata.
+- Verification passed: `company_kanban.py` temp-DB smoke, `pnpm test src/server/hermes-bridge.test.ts`, `pnpm typecheck`.
+
+## 2026-05-14 — Workspace console read-only bridge
+
+- Added `GET /api/bridge/summary` as a read-only backend bridge for Hermes Workspace, summarizing pending approvals, blocked/waiting tasks, critical events, queued/running commands, and active agents.
+- Added `src/server/console-bridge.ts` plus regression coverage in `src/server/console-bridge.test.ts`.
+- No write/control action was added; approve/reject/manual-submit/agent instruction routes remain outside the Workspace bridge.
+- Verification passed: focused bridge test, full `pnpm test` (23 files, 80 tests), `pnpm typecheck`, `pnpm lint` (existing font warning only), `pnpm prisma:validate`, `pnpm build`, `pnpm docker:config`, and loopback `/api/bridge/summary` smoke on temporary dev port.
+
+## 2026-05-14 — Workspace console drill-down bridge
+
+- Added read-only drill-down backend bridge routes: `GET /api/bridge/approvals`, `GET /api/bridge/tasks`, and `GET /api/bridge/events`.
+- Extended `src/server/console-bridge.ts` with limit-clamped approval/task/event list collectors and normalized secret-safe list payloads.
+- Verification passed: focused bridge tests, full `pnpm test` (23 files, 81 tests), `pnpm typecheck`, `pnpm lint` (existing font warning only), `pnpm prisma:validate`, `pnpm build`, `pnpm docker:config`, and loopback smoke for summary/approvals/tasks/events on temporary dev port.
+
+## 2026-05-11 — Company Discord spam stopgap
+
+- Disabled repeating Company autonomous/report workers by default through `OPS_CONSOLE_AGENT_WORKER_ENABLED=false` and `OPS_CONSOLE_REPORT_WORKER_ENABLED=false` gates.
+- Disabled idle standing-work creation, Hermes bridge execution, Company git publishing, Discord outbox sending/event creation, and direct Company reporter sends unless explicitly re-enabled.
+- Removed autonomous prompts/config instructions that told spawned Company agents to post task-complete Discord reports.
+- Verification passed: `pnpm typecheck`, `pnpm test` (74 passed), `pnpm lint` (existing font warning only), `hermes --profile company config check`, reporter live-send check returns `company_discord_reporter_disabled`.
+
+## 2026-05-16 — Project/agent conversation surfaces
+
+- Added `src/server/project-conversations.ts`, a derived conversation registry with stable `projectSlug/agentSlug/workstream` thread keys, active Company-scope guard (`ops-console`, `alpha-terminal`), role-profile memory/context ownership, and task/event/artifact message grouping.
+- Added `/projects/[id]/conversations` as a Discord-like project thread UI: left reusable thread list, selected conversation pane, message cards, empty/disabled states, and visible `threadPolicy`/`memoryOwner`/`contextOwner` metadata.
+- Added a project detail CTA to the conversation surface.
+- Routed new operator/HQ/adapter report metadata toward stable reusable project-agent threads, including project slug lookup/propagation for project-scoped instructions and autonomous adapter runs; `trading-agent` remains unsupported for worker execution.
+- Verification passed: focused `pnpm vitest run src/server/agent-instructions.test.ts src/server/project-conversations.test.ts src/server/department-adapters.test.ts src/server/hq-orchestration.test.ts` (16 tests), full `pnpm test` (24 files / 86 tests), `pnpm typecheck`, `pnpm lint` (existing `src/app/layout.tsx` custom-font warning only), `pnpm prisma:validate`, and `pnpm build`.
+- `pnpm docker:config` did not pass in this shell because `/opt/homebrew/bin/docker` is present but has no `docker compose` subcommand available (`docker: unknown command: docker compose`). No production restart/deploy/routing change was performed.
+
+## 2026-05-20 — Local Agent Control Center `/control`
+
+- Added read-only Local Agent Control Center route `/control` using the Ops Console DB/server layer as the canonical source of truth, not Hermes Workspace state.
+- Added `src/server/control-center.ts` to normalize agents, tasks, approvals, artifacts, events, health/deep rows, and scope boundary data for both UI and API use.
+- Added `GET /api/control/summary` as a force-dynamic read-only summary API.
+- Added sidebar navigation and Korean route label for `/control`.
+- Added Control Center CSS for dark-first operational density: bento overview, dense tables, health matrix, approval list, event stream, trace timeline preview, and agent graph preview.
+- Design handoff artifacts are saved under `/Users/domclaw/dom-company/design/control-center/`; Company report is saved at `/Users/domclaw/dom-company/docs/hq/ops-console/Local-Agent-Control-Center-2026-05-20.md`.
+- Verification passed: `pnpm typecheck`, `pnpm lint`, `pnpm prisma:validate`, `pnpm prisma:generate`, `pnpm test -- --runInBand`, `pnpm build`, `pnpm docker:config`, `/control` curl HTML smoke (`200`, title string present), and `/api/control/summary` JSON smoke (`agents=8`, `healthRows=13`, `events=60`, Worker gateway `stopped by design · 정상`).
+- Browser screenshot is blocked in this shell because browser/display tooling is unavailable or times out; no production restart/deploy or write/control action was performed.
+
+## 2026-05-20 — `/control` audited approval actions
+
+- After explicit operator approval, upgraded the `/control` Approval console from drill-down-only to compact audited action controls for pending approvals.
+- Reused existing approval API routes (`approve`, `reject`) and `ApprovalActions`; no new high-risk executor, external send, secret access, or browser storage access was added.
+- High/critical approvals show a stronger `high-risk · manual gate respected` affordance; approving still follows existing policy and can land in manual handoff instead of direct execution.
+- Added `src/components/approval-actions.test.tsx` with RED/GREEN coverage for compact control-center approval controls and API call wiring.
+- Verification passed: focused test first failed as expected, then passed; `pnpm typecheck`, `pnpm lint` (existing custom-font warning only), full `pnpm test` (25 files / 87 tests), `pnpm build`, `pnpm docker:config`, and `/control` curl smoke (`200`, title present, approval console present).
+
+## 2026-05-20 — `/control` reference-applied console UI
+
+- Applied the saved agent-console reference direction to `/control`: global command bar, dense observability strip, Agent/Route sidebar, central Session/Run Timeline, Right Inspector, Agent Registry Table, and reference chips for Kiro/FloQast/LaunchDarkly/OpenSea patterns.
+- Kept Ops Console DB as the canonical source of truth; no Hermes Workspace state source, schema migration, secret access, external send, deploy, or high-risk action was added.
+- Added `src/app/(app)/control/page.reference-ui.test.tsx` to lock the reference-driven layout markers.
+- Verification passed: RED/GREEN reference UI test, `pnpm typecheck`, `pnpm lint` (existing custom-font warning only), full discovered `pnpm test` (26 files / 88 tests), `pnpm build`, `pnpm docker:config`, `/control` HTTP smoke (`200`, `110542` bytes, reference markers present), `/api/control/summary` JSON smoke (`agents=8`, `healthRows=13`, `events=60`), and Playwright screenshot visual QA (`/tmp/control-reference-visual-qa.png`, no obvious layout breakage or horizontal overflow).
+
+
+## 2026-05-20 13:51 KST — production-private `/control` live 반영
+
+- 승인 근거: chamdom `ㅇㅇ 승인함`.
+- 반영 방식: `/Users/domclaw/ops-console` 브랜치 `agent/control-center-20260520`에서 `pnpm build` 재실행 후 `.next/standalone`, `.next/static`, `.next/BUILD_ID`만 `/Users/domclaw/ops-console-runtime`에 배포.
+- 백업: `/Users/domclaw/ops-console-runtime/.next-backup-control-20260520-134821`.
+- restart: `launchctl kickstart -k gui/$(id -u)/ai.company.ops-console.app`.
+- live 검증:
+  - `/api/health` unauthenticated HTTP 200, deployment `production-private`.
+  - `/control` with private operator header HTTP 200, 85890 bytes.
+  - `/api/control/summary` with private operator header HTTP 200, agents=8, healthRows=13, events=60.
+  - Worker gateway health row: `stopped`, note `stopped by design · 정상`.
+  - Playwright visual QA: `/tmp/control-live-visual-qa.png`, no horizontal overflow, command center layout 확인.
+- schema/API 변경: 없음. 기존 `/api/control/summary`와 approval API 유지.
+- secret/cookie/token/browser storage 접근: 없음.

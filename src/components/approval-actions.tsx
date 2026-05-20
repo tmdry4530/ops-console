@@ -7,9 +7,11 @@ interface Props {
   approvalId: string;
   status: string;
   manualReportId: string | null;
+  variant?: "full" | "compact";
+  riskLevel?: string;
 }
 
-export function ApprovalActions({ approvalId, status }: Props) {
+export function ApprovalActions({ approvalId, status, variant = "full", riskLevel }: Props) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [reportId, setReportId] = useState("");
@@ -18,6 +20,8 @@ export function ApprovalActions({ approvalId, status }: Props) {
 
   const isPending = status === "pending";
   const canManualSubmit = status === "manual_handoff" || status === "approved_waiting_execution";
+  const isCompact = variant === "compact";
+  const riskGateLabel = riskLevel === "high" || riskLevel === "critical" ? "high-risk · manual gate respected" : "audited safe queue";
 
   async function submit(action: string, body: Record<string, string> = {}) {
     setBusy(action);
@@ -37,15 +41,16 @@ export function ApprovalActions({ approvalId, status }: Props) {
 
   return (
     <>
-      <div className="decision-bar">
+      <div className={isCompact ? "decision-bar compact" : "decision-bar"}>
         <div className="lhs">
           <span className="pulse" />
           <div>
-            <div className="db-title">운영자 승인 필요</div>
+            <div className="db-title">{isCompact ? "감사 로그 승인" : "운영자 승인 필요"}</div>
             <div className="db-sub">
-              {isPending && "근거와 산출물을 검토한 뒤 승인, 거절, 수정 요청을 선택하세요."}
-              {canManualSubmit && "승인은 완료됐습니다. 외부 포털에서 직접 처리한 경우에만 외부 제출 ID를 기록하세요."}
-              {status === "needs_changes" && "수정 요청 상태입니다. 메모를 반영한 뒤 다시 제출하세요."}
+              {isCompact && riskGateLabel}
+              {!isCompact && isPending && "근거와 산출물을 검토한 뒤 승인, 거절, 수정 요청을 선택하세요."}
+              {!isCompact && canManualSubmit && "승인은 완료됐습니다. 외부 포털에서 직접 처리한 경우에만 외부 제출 ID를 기록하세요."}
+              {!isCompact && status === "needs_changes" && "수정 요청 상태입니다. 메모를 반영한 뒤 다시 제출하세요."}
             </div>
           </div>
         </div>
@@ -55,10 +60,12 @@ export function ApprovalActions({ approvalId, status }: Props) {
             <button className="btn ghost" disabled={busy !== null} onClick={() => setShowModal("reject")}>
               거절
             </button>
-            <button className="btn warn" disabled={busy !== null} onClick={() => setShowModal("request")}>
-              수정 요청
-            </button>
-            <button className="btn primary lg" disabled={busy !== null} onClick={() => setShowModal("approve")}>
+            {!isCompact && (
+              <button className="btn warn" disabled={busy !== null} onClick={() => setShowModal("request")}>
+                수정 요청
+              </button>
+            )}
+            <button className={isCompact ? "btn primary sm" : "btn primary lg"} disabled={busy !== null} onClick={() => setShowModal("approve")}>
               승인
             </button>
           </>
@@ -87,7 +94,7 @@ export function ApprovalActions({ approvalId, status }: Props) {
             <div className="modal-foot">
               <button className="btn ghost" onClick={() => setShowModal(null)}>취소</button>
               <button className="btn primary" disabled={busy !== null} onClick={() => submit("approve", { note })}>
-                {busy === "approve" ? "승인 중…" : "승인"}
+                {busy === "approve" ? "승인 중…" : "승인 확정"}
               </button>
             </div>
           </div>
