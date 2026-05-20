@@ -12,6 +12,8 @@ Next recommended work:
 
 ## Latest verification
 
+2026-05-20 control/projects surface split: live operator menu is now only `/control` and `/projects`. Standalone UI routes `/agents`, `/approvals`, `/events`, and `/artifacts` were removed; Control owns command intake, execution/agents, risk gate, local systems, and observability anchors. `/projects` now shows all projects plus agent-owned project sections from DB task ownership. Verification passed: tests 36 files / 112 tests, typecheck, lint with existing layout font warning only, build.
+
 2026-05-20 menu pruning: live operator menu is `/control`, `/agents`, `/approvals`, `/projects`, `/artifacts`, `/events`. Removed duplicate/static/dead menu pages `/dashboard`, `/reports`, `/settings`, `/policies`; root `/` redirects to `/control`.
 
 

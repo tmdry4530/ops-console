@@ -7,7 +7,7 @@ export function AgentStatusGrid({ agents, columns = 3 }: { agents: Agent[]; colu
   return (
     <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0,1fr))`, gap: 12 }}>
       {agents.map((a) => (
-        <Link key={a.id} href={`/agents/${a.id}`} className="agent-card" style={{ textDecoration: "none" }}>
+        <Link key={a.id} href={`/control#control-execution`} className="agent-card" style={{ textDecoration: "none" }}>
           <div className="head">
             <div className="avatar" style={{ background: "var(--bg-3)" }}>{a.name[0]}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
