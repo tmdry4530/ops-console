@@ -25,6 +25,8 @@ export type AutonomousTaskRecord = {
   summary: string | null;
   riskLevel: RiskLevel;
   projectId?: string | null;
+  status?: TaskStatus;
+  updatedAt?: Date;
   agent: {
     id: string;
     slug: string;
@@ -196,6 +198,15 @@ export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date
 
 export function hqParentAgentCompletionState(): { status: AgentStatus; currentTask: null } {
   return { status: "idle", currentTask: null };
+}
+
+export function selectNextAutonomousTaskCandidate<T extends AutonomousTaskRecord>(tasks: T[]): T | null {
+  return [...tasks].sort((a, b) => {
+    const statusRank = (status?: TaskStatus) => status === "queued" ? 0 : 1;
+    const rankDelta = statusRank(a.status) - statusRank(b.status);
+    if (rankDelta !== 0) return rankDelta;
+    return (a.updatedAt?.getTime() ?? 0) - (b.updatedAt?.getTime() ?? 0);
+  })[0] ?? null;
 }
 
 export async function completeFinishedHqParents(childTaskId: string, now = new Date()): Promise<string[]> {
@@ -612,24 +623,28 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
 
 export async function processNextAutonomousTask(now = new Date()): Promise<AutonomousTaskRunResult> {
   await ensureIdleCompanyWork(now);
-  const task = await db.task.findFirst({
+  const tasks = await db.task.findMany({
     where: {
-      status: "running",
+      status: { in: ["queued", "running"] },
       agent: { slug: { in: [...AUTONOMOUS_WORK_AGENT_SLUGS] } }
     },
-    orderBy: { updatedAt: "asc" },
+    orderBy: [{ status: "desc" }, { updatedAt: "asc" }],
+    take: 20,
     select: {
       id: true,
       title: true,
       summary: true,
+      status: true,
+      updatedAt: true,
       riskLevel: true,
       projectId: true,
       agent: { select: { id: true, slug: true, name: true } }
     }
   });
+  const task = selectNextAutonomousTaskCandidate(tasks);
 
   if (!task) {
-    return { status: "skipped", reason: "no_running_autonomous_tasks" };
+    return { status: "skipped", reason: "no_queued_task" };
   }
 
   return processAutonomousTask(task, now);

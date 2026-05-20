@@ -11,9 +11,19 @@ describe("HQ orchestration planner", () => {
       "projects-agent",
       "dev-agent",
       "content-agent",
-      "trading-agent",
+      "design-agent",
       "docs-agent"
     ]);
+  });
+
+  it("routes Discord main-agent goals as auto-start orchestration work", () => {
+    const plan = planHqOrchestration("Discord main-agent 목표: 프로젝트 워크스페이스 완전 자동화", "discord:main-agent", new Date("2026-05-21T00:10:00Z"));
+
+    expect(plan.runId).toBe("hq-20260521001000");
+    expect(plan.delegations.map((task) => task.agentSlug)).toEqual(["projects-agent", "dev-agent", "design-agent", "docs-agent"]);
+    expect(plan.delegations.every((task) => task.status === "queued")).toBe(true);
+    expect(plan.delegations[0].metadata).toMatchObject({ executionMode: "auto_multi_agent", requestedBy: "discord:main-agent" });
+    expect(plan.discordReports[0].metadata).toMatchObject({ stage: "hq_started", orchestrationRunId: "hq-20260521001000" });
   });
 
   it("routes code/research instructions to matching agents and docs", () => {
