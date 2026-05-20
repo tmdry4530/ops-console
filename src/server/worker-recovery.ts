@@ -1,3 +1,4 @@
+import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 
 export type WorkerRecoveryPlan = {
@@ -32,4 +33,35 @@ export function buildWorkerRecoveryPlan(input: { taskId: string; taskTitle: stri
       taskId: input.taskId
     }
   };
+}
+
+export async function recoverStaleWorkerLeases(now = new Date()): Promise<{ recovered: number; incidentIds: string[] }> {
+  const staleTasks = await db.task.findMany({
+    where: {
+      status: { in: ["claimed", "running", "tool_wait"] },
+      leaseExpiresAt: { lt: now }
+    },
+    select: { id: true, title: true, claimedBy: true, leaseExpiresAt: true, traceId: true, systemScope: true }
+  });
+
+  const incidentIds: string[] = [];
+  for (const task of staleTasks) {
+    const plan = buildWorkerRecoveryPlan({
+      taskId: task.id,
+      taskTitle: task.title,
+      claimedBy: task.claimedBy,
+      leaseExpiresAt: task.leaseExpiresAt,
+      now,
+      traceId: task.traceId,
+      systemScope: task.systemScope
+    });
+    if (!plan) continue;
+    const incident = await db.$transaction(async (tx) => {
+      await tx.task.update({ where: { id: task.id }, data: plan.update });
+      return tx.incident.create({ data: plan.incident, select: { id: true } });
+    });
+    incidentIds.push(incident.id);
+  }
+
+  return { recovered: incidentIds.length, incidentIds };
 }

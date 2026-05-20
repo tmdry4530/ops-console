@@ -57,11 +57,11 @@ export function enforceScopeBoundary(input: { actorScope: SystemScope; targetSco
   if (CROSS_SCOPE_DENY.has(`${input.actorScope}:${input.targetScope}`)) {
     return { allowed: false, reason: `cross_scope_denied:${input.actorScope}->${input.targetScope}` };
   }
-  if (input.actorScope === "infra") {
-    return { allowed: true, reason: "infra_allowed" };
-  }
   if (input.riskLevel === "critical") {
     return { allowed: false, reason: "critical_requires_manual_boundary_approval" };
+  }
+  if (input.actorScope === "infra") {
+    return { allowed: true, reason: "infra_allowed" };
   }
   return { allowed: true, reason: "scope_allowed" };
 }
