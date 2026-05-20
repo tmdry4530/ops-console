@@ -11,36 +11,43 @@ const baseInput: AgentInstructionInput = {
 };
 
 describe("planAgentInstruction", () => {
-  it("creates a pending approval plan for low-risk operator instructions", () => {
+  it("queues low-risk internal operator instructions without a redundant approval", () => {
     const plan = planAgentInstruction(baseInput, "operator@example.invalid");
 
-    expect(plan.task.status).toBe("waiting_approval");
+    expect(plan.task.status).toBe("queued");
     expect(plan.task.slug).toMatch(/^ops-crypto-signal-/);
-    expect(plan.approval.status).toBe("pending");
-    expect(plan.approval.type).toBe("other");
-    expect(plan.approval.riskLevel).toBe("low");
-    expect(plan.approval.summary).toContain("뉴스 소스 품질 점검");
+    expect(plan.approval).toBeNull();
+    expect(plan.task.nextAction).toContain("자동 작업 큐");
     expect(plan.event.message).toContain("Operator instruction requested");
   });
 
   it("maps deployment instructions to deploy approvals", () => {
     const plan = planAgentInstruction({ ...baseInput, actionType: "deploy", riskLevel: "medium" }, "operator@example.invalid");
 
-    expect(plan.approval.type).toBe("deploy");
-    expect(plan.approval.riskLevel).toBe("medium");
+    expect(plan.approval?.type).toBe("deploy");
+    expect(plan.approval?.riskLevel).toBe("medium");
   });
 
   it("forces wallet and high-risk instructions into visible approval gates", () => {
     const walletPlan = planAgentInstruction({ ...baseInput, actionType: "wallet_kyc", riskLevel: "medium" }, "operator@example.invalid");
     const highRiskPlan = planAgentInstruction({ ...baseInput, actionType: "operator_instruction", riskLevel: "high" }, "operator@example.invalid");
 
-    expect(walletPlan.approval.type).toBe("wallet_kyc");
-    expect(walletPlan.approval.status).toBe("pending");
-    expect(highRiskPlan.approval.riskLevel).toBe("high");
-    expect(highRiskPlan.approval.status).toBe("pending");
+    expect(walletPlan.approval?.type).toBe("wallet_kyc");
+    expect(walletPlan.approval?.status).toBe("pending");
+    expect(highRiskPlan.approval?.riskLevel).toBe("high");
+    expect(highRiskPlan.approval?.status).toBe("pending");
   });
 
   it("rejects blank instructions", () => {
     expect(() => planAgentInstruction({ ...baseInput, instruction: "   " }, "operator@example.invalid")).toThrow("instruction_required");
+  });
+
+  it("auto-starts main-agent orchestration plans from Discord goals", () => {
+    const plan = planAgentInstruction({ ...baseInput, agentId: "agent_main", agentSlug: "main-agent", agentName: "Main Agent", instruction: "프로젝트 워크스페이스 완전 자동화", riskLevel: "medium" }, "discord:main-agent");
+
+    expect(plan.task.status).toBe("running");
+    expect(plan.approval).toBeNull();
+    expect(plan.task.nextAction).toContain("하위 에이전트 자동 분배");
+    expect(plan.event.metadata).toMatchObject({ actionType: "operator_instruction", executionMode: "auto_multi_agent" });
   });
 });

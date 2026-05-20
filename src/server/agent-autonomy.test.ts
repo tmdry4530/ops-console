@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hqParentAgentCompletionState, planAutonomousTaskRun, shouldCompleteHqParent, type AutonomousTaskRecord } from "./agent-autonomy";
+import { hqParentAgentCompletionState, planAutonomousTaskRun, shouldCompleteHqParent, selectNextAutonomousTaskCandidate, type AutonomousTaskRecord } from "./agent-autonomy";
 
 const safeTask: AutonomousTaskRecord = {
   id: "task_1",
@@ -111,5 +111,12 @@ describe("planAutonomousTaskRun", () => {
 
   it("marks the HQ parent agent idle when the delegated orchestration finishes", () => {
     expect(hqParentAgentCompletionState()).toEqual({ status: "idle", currentTask: null });
+  });
+
+  it("selects queued delegated work before older running work so Discord fan-out actually starts", () => {
+    const queuedDelegation = { ...safeTask, id: "task_queued", title: "queued child", status: "queued" as const, updatedAt: new Date("2026-05-21T00:00:00Z") };
+    const runningTask = { ...safeTask, id: "task_running", title: "running child", status: "running" as const, updatedAt: new Date("2026-05-20T00:00:00Z") };
+
+    expect(selectNextAutonomousTaskCandidate([runningTask, queuedDelegation])?.id).toBe("task_queued");
   });
 });

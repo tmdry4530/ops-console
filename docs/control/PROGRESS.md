@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-05-21 — Discord main-agent auto multi-agent orchestration
+
+- Changed safe low/medium `operator_instruction` and `internal_sync` requests from redundant approval-first flow to auditable `queued` work.
+- Enabled `main-agent` as a first-class orchestration intake alongside `hq-agent`: Discord/main-agent goals now create a running parent task, `hq.orchestration.started`, queued role-agent child tasks, and `discord.report.queued` intents without requiring a second approval for safe internal work.
+- Added a write-gated bridge endpoint: `POST /api/discord/main-agent/goals` for Discord/router ingestion into the same audited instruction path.
+- Changed autonomous worker acquisition to include `queued` role-agent tasks and prefer them before older running work, so newly fanned-out child tasks actually start.
+- Company active fan-out excludes unsupported `trading-agent`; broad Company work routes through main/research/projects/dev/content/design/docs.
+- Verification in branch `feat/discord-auto-multi-agent`: targeted RED/GREEN tests and full `pnpm test` (36 files / 115 tests) passed; typecheck passed. Full lint/build/runtime verification follows before deployment.
+
 ## 2026-05-20 — Control/projects surface split
 
 - Reduced live sidebar to the two working operator surfaces: `/control` and `/projects`.

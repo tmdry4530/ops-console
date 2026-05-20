@@ -12,6 +12,8 @@ Next recommended work:
 
 ## Latest verification
 
+2026-05-21 Discord main-agent auto multi-agent orchestration: safe low/medium internal instructions now queue automatically instead of requiring a redundant approval. `main-agent` and `hq-agent` act as orchestrators: a safe Discord/main-agent goal creates a running parent task plus queued child tasks for role agents, emits `hq.orchestration.started` / `hq.delegation.created` / `discord.report.queued` evidence, and the autonomous worker now picks up `queued` role-agent tasks before older running work. New bridge endpoint: `POST /api/discord/main-agent/goals` behind write RBAC. Current branch verification: targeted tests and full `pnpm test` passed; typecheck passed. Lint/build/runtime deploy still required before production handoff.
+
 2026-05-20 control/projects surface split: live operator menu is now only `/control` and `/projects`. Standalone UI routes `/agents`, `/approvals`, `/events`, and `/artifacts` were removed; Control owns command intake, execution/agents, risk gate, local systems, and observability anchors. `/projects` now shows all projects plus agent-owned project sections from DB task ownership. Verification passed: tests 36 files / 112 tests, typecheck, lint with existing layout font warning only, build.
 
 2026-05-20 menu pruning: live operator menu is `/control`, `/agents`, `/approvals`, `/projects`, `/artifacts`, `/events`. Removed duplicate/static/dead menu pages `/dashboard`, `/reports`, `/settings`, `/policies`; root `/` redirects to `/control`.

@@ -22,3 +22,5 @@
 
 - `/control` approval actions may reuse existing audited approval APIs for pending approvals after explicit operator approval; high/critical actions still honor the existing manual-handoff policy and must not bypass command-worker risk gates.
 - `/control` reference-applied UI adopts saved agent-console references as visual/IA guidance only: global command bar, route rail, session timeline, right inspector, and dense registry/observability patterns are allowed, but command palette/management execution remains non-functional unless separately approved.
+
+- Safe Discord/main-agent goals are treated as operator-approved internal instructions, not as another approval request: `main-agent` creates an auditable running orchestration parent and queued child tasks for role agents. The autonomous worker must acquire queued child tasks and start them; high/critical/external/deploy/wallet/paid/public/trading actions remain approval/manual-handoff gated.
