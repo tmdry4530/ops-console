@@ -96,3 +96,37 @@ Root markdown is intentionally limited to `README.md` and `AGENTS.md`. Control d
 - Added weekly regression API/script: `POST /api/agents/harness/regression/run` and `src/agent-harness/runWeeklyRegressionEval.ts`.
 - Failure feedback loop routes failures into spec patch / skill candidate / memory candidate / eval case flags and creates regression eval cases for schema/verifier failures.
 - Verification: lint passed with existing font warning, tests 98 passed, build passed.
+## 2026-05-20 — AgentOps hardening handoff
+
+Current active branch: `/tmp/ops-agentops-upgrade` (`feat/agentops-control-plane-upgrade`).
+
+Implemented in branch:
+
+- Central write RBAC/audit helper and write API coverage for agent/approval/harness/ingest/command-compile routes.
+- Policy table enforcement fallback layer wired into command executor.
+- Single DB-backed agent registry helper; no Hermes Workspace canonical state.
+- AJV JSON Schema harness validation plus semantic verifier ordering for role-specific rules.
+- `/traces/[traceId]` detail route.
+- `/agents/[id]` harness management visibility.
+- `/control` Command Compiler MVP connected to real API/CommandQueue/audit Event.
+- Probe-backed local system monitor and ModelCall/ToolCall aggregate metrics.
+- Bounded command/agent worker loops.
+
+Latest local verification on branch:
+
+- Focused regression: `src/server/command-executor.test.ts` + `src/agent-harness/runtime-harness.test.ts` passed, 13 tests.
+- Full test: `pnpm test` passed, 34 files / 109 tests.
+- `pnpm typecheck` passed.
+- `pnpm lint` passed with the pre-existing `src/app/layout.tsx` custom-font warning only.
+- `pnpm build` passed.
+
+Pending before marking complete:
+
+1. Commit and push branch.
+2. Open PR, review diff, then merge only if risk remains acceptable.
+3. Deploy clean runtime bundle to `/Users/domclaw/ops-console-runtime`.
+4. Runtime smoke: `/api/health`, `/api/health/deep`, `/control`, command compiler API/RBAC behavior, `/traces/[traceId]`, `/agents/[id]`.
+5. Create Ops Console Task/Artifact/Verification/Event records after runtime verification.
+
+Security notes: do not read or record secret/token/cookie/browser storage/real DB URL values. Use `[REDACTED]` in docs/reports.
+

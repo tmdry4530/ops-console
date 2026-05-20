@@ -23,6 +23,11 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
     db.project.findMany({ orderBy: { updatedAt: "desc" }, select: { id: true, name: true, slug: true } })
   ]);
   if (!agent) notFound();
+  const [harnessVersions, evals, failures] = await Promise.all([
+    db.agentHarnessVersion.findMany({ where: { agentSlug: agent.slug }, orderBy: [{ status: "asc" }, { promotedAt: "desc" }, { createdAt: "desc" }], take: 8 }).catch(() => []),
+    db.agentEvalResult.findMany({ where: { agentSlug: agent.slug }, orderBy: { createdAt: "desc" }, take: 8 }).catch(() => []),
+    db.agentFailure.findMany({ where: { agentSlug: agent.slug }, orderBy: { createdAt: "desc" }, take: 8 }).catch(() => [])
+  ]);
   const latestWorkEvent = agent.events.find((event) => event.type === "company.task.mirrored" || event.type === "status.ingested");
 
   return (
@@ -115,6 +120,26 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
         </div>
         <div className="span-4 vstack" style={{ gap: 16 }}>
           <AgentControlPanel agentId={agent.id} />
+          <div className="card">
+            <div className="card-head"><div className="title">Harness Management</div><div className="sub">· versions/evals/failures</div></div>
+            <div className="card-body vstack" style={{ gap: 10 }}>
+              <div className="muted" style={{ fontSize: 12.5 }}>활성/롤백 후보는 AgentHarnessVersion 실제 레코드 기준입니다. 변경 API는 admin RBAC + audit Event가 필요합니다.</div>
+              {harnessVersions.map((version) => (
+                <div key={version.id} className="path" style={{ alignItems: "flex-start" }}>
+                  <span className={version.status === "active" ? "sev ok" : "sev warn"} style={{ marginTop: 3 }} />
+                  <span style={{ flex: 1 }}><div style={{ fontWeight: 600 }}>{version.version} · {version.status}</div><div className="muted" style={{ fontSize: 12 }}>promoted {formatDateTimeKo(version.promotedAt)} · rollbackFrom {version.rollbackFrom ?? "-"}</div></span>
+                </div>
+              ))}
+              {harnessVersions.length === 0 && <div className="empty">등록된 harness version 없음</div>}
+              <div className="hr" />
+              <div style={{ fontWeight: 600 }}>최근 Eval</div>
+              {evals.slice(0, 4).map((item) => <div key={item.id} className="muted" style={{ fontSize: 12 }}>{item.pass ? "PASS" : "FAIL"} · score {item.score} · {item.harnessVersion} · {formatDateTimeKo(item.createdAt)}</div>)}
+              {evals.length === 0 && <div className="muted" style={{ fontSize: 12 }}>eval result 없음</div>}
+              <div style={{ fontWeight: 600 }}>최근 Failure</div>
+              {failures.slice(0, 4).map((item) => <div key={item.id} className="muted" style={{ fontSize: 12 }}>{item.severity} · {item.failureClass} · {item.summary}</div>)}
+              {failures.length === 0 && <div className="muted" style={{ fontSize: 12 }}>failure 없음</div>}
+            </div>
+          </div>
           <div className="card">
             <div className="card-head"><div className="title">Capabilities / Runbook</div><div className="sub">· 허용 도구/리스크/수동 게이트</div></div>
             <div className="card-body vstack" style={{ gap: 10 }}>

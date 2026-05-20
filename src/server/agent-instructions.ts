@@ -121,7 +121,7 @@ export function planAgentInstruction(input: AgentInstructionInput, actorEmail: s
   };
 }
 
-export async function createAgentInstruction(agentId: string, body: unknown, actorEmail: string) {
+export async function createAgentInstruction(agentId: string, body: unknown, actorEmail: string, traceId?: string) {
   const agent = await db.agent.findUniqueOrThrow({ where: { id: agentId } });
   const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const actionType = typeof record.actionType === "string" ? (record.actionType as AgentInstructionActionType) : "operator_instruction";
@@ -142,7 +142,7 @@ export async function createAgentInstruction(agentId: string, body: unknown, act
         : plan.task
     });
     const approval = await tx.approval.create({ data: { ...plan.approval, taskId: task.id } });
-    const event = await tx.event.create({ data: { ...plan.event, taskId: task.id, approvalId: approval.id } });
+    const event = await tx.event.create({ data: { ...plan.event, traceId, taskId: task.id, approvalId: approval.id } });
 
     if (!hqPlan) return { task, approval, event, delegations: [], discordReports: [] };
 
@@ -174,6 +174,7 @@ export async function createAgentInstruction(agentId: string, body: unknown, act
           type: "hq.delegation.created",
           severity: "info",
           message: `HQ delegation created: ${delegation.department}`,
+          traceId,
           metadata: { orchestrationRunId: hqPlan.runId, parentTaskId: task.id, childTaskId: childTask.id, department: delegation.department },
           agentId: targetAgentId,
           projectId,
@@ -190,6 +191,7 @@ export async function createAgentInstruction(agentId: string, body: unknown, act
           type: "discord.report.queued",
           severity: "info",
           message: `Discord report queued: ${report.channel}`,
+          traceId,
           metadata: { ...report.metadata, channel: report.channel, message: report.message },
           agentId: agent.id,
           projectId,

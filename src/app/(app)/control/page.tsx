@@ -4,6 +4,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 import { ApprovalActions } from "@/components/approval-actions";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
+import { CommandCompilerBar } from "@/components/command-compiler-bar";
 import { formatDateTimeKo, formatTimeKo, labelForHealth, labelForRisk, labelForStatus } from "@/lib/korean-labels";
 import { getControlCenterSummary } from "@/server/control-center";
 
@@ -72,10 +73,10 @@ export default async function ControlCenterPage() {
             <span className="eyebrow">Global Command Bar</span>
             <strong>/route /run /approve /pause agent</strong>
           </div>
-          <div className="control-command-input">⌘K  agent, task, trace, approval 검색</div>
+          <CommandCompilerBar />
           <div className="control-command-tags">
             <span>Kiro-style executor</span>
-            <span>read-only</span>
+            <span>RBAC write-gated</span>
             <span>approval gated</span>
           </div>
         </section>
@@ -255,7 +256,7 @@ export default async function ControlCenterPage() {
               {control.traces.slice(0, 8).map((trace) => (
                 <div key={trace.id} className="trace-row">
                   <span className={`trace-dot ${trace.status}`} />
-                  <div><strong>{trace.kind}</strong><span>{trace.title}</span><em>{formatTimeKo(trace.at)} · {trace.traceId.slice(0, 10)}</em></div>
+                  <div><strong>{trace.kind}</strong><span>{trace.title}</span><em><Link href={`/traces/${trace.traceId}` as Route}>{formatTimeKo(trace.at)} · {trace.traceId.slice(0, 10)}</Link></em></div>
                 </div>
               ))}
               {control.traces.length === 0 && <div className="empty">trace event 없음</div>}

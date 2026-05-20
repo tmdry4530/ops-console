@@ -1,7 +1,7 @@
 import { compareCompanyAgents, workAgentWhereClause } from "@/lib/agent-visibility";
 import { db } from "@/lib/db";
 import type { Agent, Approval, Artifact, Event, RiskLevel, Task } from "@prisma/client";
-import { buildLocalSystemMonitor } from "./local-system-monitor";
+import { buildLocalSystemMonitor, probeLocalSystems } from "./local-system-monitor";
 import { getCompanyOpsMonitor, summarizeAgentOps } from "./ops-monitor";
 
 const ACTIVE_TASK_STATUSES = ["queued", "running", "waiting_approval", "needs_changes"] as const;
@@ -99,7 +99,7 @@ function shortId(id: string) {
 }
 
 export async function getControlCenterSummary(now = new Date()) {
-  const [monitor, agentsRaw, tasks, approvals, events, artifacts, commands] = await Promise.all([
+  const [monitor, agentsRaw, tasks, approvals, events, artifacts, commands, modelAgg, toolAgg, localProbeChecks] = await Promise.all([
     getCompanyOpsMonitor(now),
     db.agent.findMany({
       where: workAgentWhereClause(),
@@ -119,7 +119,10 @@ export async function getControlCenterSummary(now = new Date()) {
     }),
     db.event.findMany({ orderBy: { createdAt: "desc" }, take: 120, include: { agent: true, task: true, approval: true } }),
     db.artifact.findMany({ orderBy: { updatedAt: "desc" }, take: 40 }),
-    db.commandQueue.findMany({ orderBy: { updatedAt: "desc" }, take: 40, include: { approval: true } })
+    db.commandQueue.findMany({ orderBy: { updatedAt: "desc" }, take: 40, include: { approval: true } }),
+    db.modelCall.aggregate({ _sum: { costUsd: true, inputTokens: true, outputTokens: true, cacheTokens: true }, _avg: { latencyMs: true }, where: { createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } } }).catch(() => null),
+    db.toolCall.aggregate({ _avg: { durationMs: true }, _count: { _all: true }, where: { createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) } } }).catch(() => null),
+    probeLocalSystems().catch(() => ({}))
   ]);
 
   const agents = agentsRaw.sort(compareCompanyAgents).map((agent) => {
@@ -258,19 +261,13 @@ export async function getControlCenterSummary(now = new Date()) {
     { scope: "X-CDP", state: "isolated", rule: "CDP-specific tasks stay out of Company active scope." }
   ];
 
-  const totalCostToday = agents.reduce((sum, agent) => sum + agent.costToday, 0);
-  const averageLatencyMs = Math.round(agents.reduce((sum, agent) => sum + (agent.latencyMs ?? 0), 0) / Math.max(1, agents.filter((agent) => agent.latencyMs !== null).length));
+  const totalCostToday = modelAgg?._sum.costUsd ?? 0;
+  const totalTokensToday = (modelAgg?._sum.inputTokens ?? 0) + (modelAgg?._sum.outputTokens ?? 0) + (modelAgg?._sum.cacheTokens ?? 0);
+  const averageLatencyMs = Math.round(modelAgg?._avg.latencyMs ?? toolAgg?._avg.durationMs ?? 0);
 
   const localSystems = buildLocalSystemMonitor({
     now,
-    checks: {
-      "company-router": { state: "ok", detail: "manifest and router health tracked separately" },
-      "ops-console": { state: "ok", detail: "Ops Console DB/API is canonical" },
-      "developer-job-dashboard": { state: "unknown", detail: "checked by router health probe" },
-      "alpha-terminal": { state: "unknown", detail: "Alpha scope stays isolated" },
-      "auth-manager": { state: eventRows.some((event) => event.source.includes("auth") && event.severity === "critical") ? "error" : "ok", detail: "launchd health monitor; secrets hidden" },
-      "crypto-signal": { state: eventRows.some((event) => event.source.includes("crypto") && event.severity === "critical") ? "error" : "unknown", detail: "collector/CDP process-backed; Company read-only" }
-    }
+    checks: localProbeChecks
   });
 
   return {
@@ -286,6 +283,7 @@ export async function getControlCenterSummary(now = new Date()) {
       incidents: incidents.length,
       totalCostToday,
       averageLatencyMs,
+      totalTokensToday,
       artifacts: artifacts.length,
       restrictedArtifacts: artifacts.filter((artifact: Artifact) => artifact.restricted).length,
       commandsOpen: commands.filter((command) => ["queued", "waiting_manual_handoff", "running"].includes(command.status)).length
@@ -301,7 +299,9 @@ export async function getControlCenterSummary(now = new Date()) {
     traces: traceRows,
     incidents,
     scopeBoundaries,
-    costRows: agents.map((agent) => ({ agent: agent.name, model: agent.model, costToday: agent.costToday, tokensToday: agent.tokensToday, latencyMs: agent.latencyMs, traceId: agent.currentTaskId ?? agent.id }))
+    costRows: agents.map((agent) => ({ agent: agent.name, model: agent.model, costToday: agent.costToday, tokensToday: agent.tokensToday, latencyMs: agent.latencyMs, traceId: agent.currentTaskId ?? agent.id })),
+    modelCallTotals: { costUsd: totalCostToday, tokens: totalTokensToday, averageLatencyMs },
+    toolCallTotals: { count: toolAgg?._count._all ?? 0, averageDurationMs: Math.round(toolAgg?._avg.durationMs ?? 0) }
   };
 }
 
