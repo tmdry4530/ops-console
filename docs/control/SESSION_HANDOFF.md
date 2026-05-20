@@ -78,3 +78,10 @@ Frontend UI guidance now lives at `docs/frontend/UI_GUIDE.md`, with `docs/INDEX.
 ## Markdown organization update
 
 Root markdown is intentionally limited to `README.md` and `AGENTS.md`. Control docs now live in `docs/control/`; deployment, backup/restore, and security docs live in `docs/operations/`.
+
+## Agent Harness Kernel update — 2026-05-20
+
+- `DOM_COMPANY_ROOT/agents/<agentSlug>/` is the durable harness source.
+- Run `DOM_COMPANY_ROOT=/Users/domclaw/dom-company pnpm tsx src/agent-harness/seedHarnessRegistry.ts` after migration to seed AgentCapability, AgentHarness, AgentHarnessVersion, and AgentEvalCase rows.
+- Runtime worker blocks capability/policy failures before execution and blocks `completed` if output schema/verifier fails.
+- API: `GET /api/agents/performance` returns harness quality status for Control Center.

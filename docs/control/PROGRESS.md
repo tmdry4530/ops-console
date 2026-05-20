@@ -95,3 +95,11 @@ Passed:
 - Moved operational runbooks into `docs/operations/`.
 - Kept only `README.md` and `AGENTS.md` at repo root for standard discovery and agent loading.
 - Updated `docs/INDEX.md` and `README.md` to point to the new locations.
+
+## 2026-05-20 — Agent Harness Kernel
+
+- Added Runtime Harness Kernel (`src/agent-harness/`) for hq/main/research/projects/dev/docs/content/design agents.
+- Added AgentHarness/AgentEvalCase/AgentEvalResult/AgentFailure registry models and migration.
+- Autonomous worker now runs harness preflight before execution and output schema/verifier gate before `completed`.
+- Agent Performance API added at `/api/agents/performance` for Control Center quality dashboard integration.
+- Validation passed: prisma validate/generate, typecheck, full vitest suite (94 tests), lint (existing font warning only), production build.
