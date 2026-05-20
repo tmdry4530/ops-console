@@ -10,10 +10,7 @@ export default async function ProjectsPage() {
       <div className="page-head">
         <div className="titles">
           <h1>Projects</h1>
-          <div className="sub">Revenue · bounty · signal · monitoring</div>
-        </div>
-        <div className="actions">
-          <button className="btn ghost sm">+ New project</button>
+          <div className="sub">Company active scope · ops-console · alpha-terminal</div>
         </div>
       </div>
       <ProjectBoard projects={projects} />

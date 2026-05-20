@@ -12,6 +12,9 @@ Next recommended work:
 
 ## Latest verification
 
+2026-05-20 menu pruning: live operator menu is `/control`, `/agents`, `/approvals`, `/projects`, `/artifacts`, `/events`. Removed duplicate/static/dead menu pages `/dashboard`, `/reports`, `/settings`, `/policies`; root `/` redirects to `/control`.
+
+
 Skeleton checks passed: install, Prisma generate/validate, lint, typecheck, unit/smoke tests, production build, default Docker Compose config, and full workers/proxy Compose config.
 
 Precise blockers remaining for the active production goal:
@@ -39,8 +42,8 @@ App container healthcheck is now healthy with Compose `HOSTNAME=0.0.0.0` and `PO
 Current Mac mini deployment is live.
 
 - Repo path: `/Users/domclaw/ops-console`
-- Browser URL from Mac mini itself: `http://127.0.0.1:3010/dashboard`
-- LAN URL for allowlisted clients `192.168.35.244` and `192.168.0.31`: `http://192.168.35.36:3010/dashboard`
+- Browser URL from Mac mini itself: `http://127.0.0.1:3010/control`
+- LAN URL for allowlisted clients `192.168.35.244` and `192.168.0.31`: `http://192.168.35.36:3010/control`
 - Tailnet URL for Tailscale clients: `https://mac-mini-ops-console.tail2e580b.ts.net/`
 - Tailscale node IP: `100.94.36.17`; access is via Tailscale Serve proxying to `http://127.0.0.1:3010`, not by opening app port `3000` publicly.
 - Direct app URL: `http://127.0.0.1:3000` with `x-ops-operator-email` header; app is loopback-only.
