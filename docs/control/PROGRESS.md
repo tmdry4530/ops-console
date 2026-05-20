@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-05-20 — Operator menu pruning
+
+- Removed dead/duplicate sidebar menus: Dashboard, Reports, Settings, and Policies.
+- `/control` is now the default root operator surface; `/events` carries audit/report evidence.
+- Removed non-functional project creation button from `/projects`; project creation remains workflow/API-driven until a real audited action exists.
+- Added `src/lib/operator-navigation.ts` as the canonical live-menu policy plus tests.
+
+
 ## 2026-05-20 — Hermes Workspace retired; Company-native monitor/manage surface
 
 - Retired Hermes Workspace from live Company operation: launchd service removed, active path removed, Company Router `workspace` service removed, and `/workspace` + `/operations` now return `410 retired_surface`.
@@ -60,7 +68,7 @@ Passed:
 
 - Compose clean DB path: `docker compose down -v`, `docker compose up -d postgres redis`, `docker compose --profile tools run --rm migrate`, `docker compose --profile tools run --rm seed`, `docker compose up -d app`.
 - Runtime health: `curl http://127.0.0.1:3000/api/health`.
-- Auth gate: `/dashboard` without `x-ops-operator-email` returns `401`; with the header returns `200`.
+- Auth gate: `/control` without `x-ops-operator-email` returns `401`; with the header returns `200`.
 - Bounty Submission Approval slice: approval detail renders, approve creates a `waiting_manual_handoff` command record, manual submission records report ID, project moves to `submitted`, task moves to `completed`, and timeline events are created.
 - Revenue Manual Outreach path: seeded pending approval and project visible.
 - Ingestion idempotency: repeated `/api/ingest/run` calls skip unchanged sample artifacts.
@@ -86,9 +94,9 @@ Passed:
   - `ai.company.tailscale.userspace` runs Tailscale in userspace mode without root TUN privileges and keeps the tailnet session alive.
 - Runtime smoke passed:
   - `GET /api/health` returned OK.
-  - `GET /dashboard` with operator header returned OK.
-  - `GET http://127.0.0.1:3010/dashboard` returned OK for local browser use.
-  - LAN URL is `http://192.168.35.36:3010/dashboard`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
+  - `GET /control` with operator header returned OK.
+  - `GET http://127.0.0.1:3010/control` returned OK for local browser use.
+  - LAN URL is `http://192.168.35.36:3010/control`; non-allowlisted client IPs receive `403 Forbidden` at the proxy.
   - Tailnet-only HTTPS URL is `https://mac-mini-ops-console.tail2e580b.ts.net/`, served through Tailscale Serve to `http://127.0.0.1:3010`.
   - Added live Mac mini status ingestion:
   - `ai.company.ops-console.live-status` writes safe launchd status files for process-backed monitoring agents under ignored `ops/status/*.json` every 60 seconds.

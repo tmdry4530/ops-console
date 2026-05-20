@@ -19,7 +19,7 @@ pnpm prisma:generate
 pnpm dev
 ```
 
-The initial skeleton exposes `/dashboard` and `/api/health`. Feature implementation still needs to wire database-backed auth, approvals, ingestion, SSE, and workers.
+The canonical operator surface is `/control`; `/api/health` and `/api/health/deep` expose runtime checks. Legacy menu pages such as `/dashboard`, `/reports`, `/settings`, and `/policies` are retired from the operator navigation.
 
 ## Documentation
 
