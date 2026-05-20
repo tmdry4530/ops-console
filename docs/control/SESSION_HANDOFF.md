@@ -85,3 +85,11 @@ Root markdown is intentionally limited to `README.md` and `AGENTS.md`. Control d
 - Run `DOM_COMPANY_ROOT=/Users/domclaw/dom-company pnpm tsx src/agent-harness/seedHarnessRegistry.ts` after migration to seed AgentCapability, AgentHarness, AgentHarnessVersion, and AgentEvalCase rows.
 - Runtime worker blocks capability/policy failures before execution and blocks `completed` if output schema/verifier fails.
 - API: `GET /api/agents/performance` returns harness quality status for Control Center.
+## 2026-05-20 — Agent Harness P2
+
+- Added agent quality dashboard data to `/agents` using `/api/agents/performance`.
+- Added P2 policy helpers for quality bands, rollback decisions, failure feedback routing, and weekly regression run slugs.
+- Added rollback API: `POST /api/agents/harness/rollback`.
+- Added weekly regression API/script: `POST /api/agents/harness/regression/run` and `src/agent-harness/runWeeklyRegressionEval.ts`.
+- Failure feedback loop routes failures into spec patch / skill candidate / memory candidate / eval case flags and creates regression eval cases for schema/verifier failures.
+- Verification: lint passed with existing font warning, tests 98 passed, build passed.
