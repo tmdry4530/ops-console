@@ -1,5 +1,14 @@
 # Progress
 
+## 2026-05-20 — Control/projects surface split
+
+- Reduced live sidebar to the two working operator surfaces: `/control` and `/projects`.
+- Retired standalone UI pages for `/agents`, `/approvals`, `/events`, and `/artifacts`; the underlying audited APIs remain available for Control/task workflows.
+- Reworked `/projects` into two real DB-backed views: all projects and agent-owned project sections derived from `Project.tasks.agent`.
+- Split `/control` responsibilities into command intake, execution/agents, risk gate, local systems, and observability anchors while keeping one top-level Control menu.
+- Updated task/project detail links so they return to Control responsibility sections instead of removed standalone menus.
+- Verification passed on branch `feat/control-project-surface-split`: `pnpm test` (36 files / 112 tests), `pnpm typecheck`, `pnpm lint` (existing layout font warning only), and `pnpm build`.
+
 ## 2026-05-20 — Operator menu pruning
 
 - Removed dead/duplicate sidebar menus: Dashboard, Reports, Settings, and Policies.

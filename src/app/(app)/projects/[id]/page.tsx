@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import type { Route } from "next";
 import Link from "next/link";
 import { ArtifactLink } from "@/components/artifact-link";
 import { EventTimeline } from "@/components/event-timeline";
@@ -71,9 +70,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     <tr key={a.id}>
                       <td><span className="tag">{a.type}</span></td>
                       <td>
-                        <Link href={`/approvals/${a.id}` as Route} style={{ fontWeight: 500, color: "var(--text-0)" }}>
+                        <span style={{ fontWeight: 500, color: "var(--text-0)" }}>
                           {a.title}
-                        </Link>
+                        </span>
                       </td>
                       <td><RiskBadge risk={a.riskLevel} /></td>
                       <td><StatusBadge label={a.status} /></td>

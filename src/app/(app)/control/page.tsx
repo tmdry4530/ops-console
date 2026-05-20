@@ -5,6 +5,7 @@ import { ApprovalActions } from "@/components/approval-actions";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { CommandCompilerBar } from "@/components/command-compiler-bar";
+import { controlResponsibilitySections } from "@/lib/control-responsibilities";
 import { formatDateTimeKo, formatTimeKo, labelForHealth, labelForRisk, labelForStatus } from "@/lib/korean-labels";
 import { getControlCenterSummary } from "@/server/control-center";
 
@@ -52,8 +53,7 @@ export default async function ControlCenterPage() {
           </div>
           <div className="control-hero-actions">
             <div className="live-pill"><span /> Live · {formatTimeKo(control.generatedAt)}</div>
-            <Link href="/approvals" className="btn warn sm">승인 콘솔</Link>
-            <Link href="/events" className="btn ghost sm">이벤트 원장</Link>
+            <Link href="/projects" className="btn ghost sm">프로젝트</Link>
           </div>
         </section>
 
@@ -64,11 +64,29 @@ export default async function ControlCenterPage() {
               <strong>{control.highRiskApprovals[0].title}</strong>
               <p>{control.highRiskApprovals[0].summary}</p>
             </div>
-            <Link href={`/approvals/${control.highRiskApprovals[0].id}` as Route} className="btn danger">강한 확인 필요</Link>
+            <a href="#control-risk" className="btn danger">강한 확인 필요</a>
           </section>
         )}
 
-        <section className="control-command-bar" aria-label="Global Command Bar">
+        <section className="card" aria-label="Control responsibility split">
+          <div className="card-head">
+            <div className="title">Control 기능 책임 분리</div>
+            <div className="sub">· Control만 정상 운영 표면으로 두고 내부 책임을 명확히 나눔</div>
+          </div>
+          <div className="card-body">
+            <div className="grid-12">
+              {controlResponsibilitySections.map((section) => (
+                <a key={section.key} href={`#${section.anchor}`} className="metric-card span-2" style={{ textDecoration: "none" }}>
+                  <div className="metric-label">{section.ownerLabel}</div>
+                  <div className="metric-value" style={{ fontSize: 16 }}>{section.title}</div>
+                  <div className="metric-delta">{section.summary}</div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="control-command" className="control-command-bar" aria-label="Global Command Bar">
           <div>
             <span className="eyebrow">Global Command Bar</span>
             <strong>/route /run /approve /pause agent</strong>
@@ -90,7 +108,7 @@ export default async function ControlCenterPage() {
           <div className="control-metric"><span>Artifacts</span><strong>{control.summary.artifacts}</strong><em>restricted {control.summary.restrictedArtifacts}</em></div>
         </section>
 
-        <section className="card" aria-label="Company-native system monitor">
+        <section id="control-systems" className="card" aria-label="Company-native system monitor">
           <div className="card-head">
             <div className="title">Company-native Monitor / Manage</div>
             <div className="sub">· Netdata · LangSmith · Windmill · Google Status 패턴을 우리 구조에 맞게 적용</div>
@@ -118,13 +136,12 @@ export default async function ControlCenterPage() {
 
         <section className="control-console-frame" aria-label="Reference-driven console frame">
           <aside className="control-route-rail">
-            <span className="eyebrow">Agent / Route sidebar</span>
-            <a href="#agents">Agent Registry Table</a>
-            <a href="#sessions">Session / Run Timeline</a>
-            <a href="#approvals">Approval Queue</a>
-            <a href="#events">LaunchDarkly-style traces</a>
-            <div className="reference-chip">FloQast-style roster</div>
-            <div className="reference-chip">OpenSea-style dense grid</div>
+            <span className="eyebrow">Control responsibilities</span>
+            {controlResponsibilitySections.map((section) => (
+              <a key={section.key} href={`#${section.anchor}`}>{section.title}</a>
+            ))}
+            <div className="reference-chip">Standalone agents/approvals/events retired</div>
+            <div className="reference-chip">Control owns live operations</div>
           </aside>
 
           <div className="control-session-list" id="sessions">
@@ -151,7 +168,7 @@ export default async function ControlCenterPage() {
         </section>
 
         <section className="control-grid">
-          <div className="card control-span-8" id="agents">
+          <div className="card control-span-8" id="control-execution">
             <div className="card-head">
               <div className="title">Agent Registry Table</div>
               <div className="sub">· model/cost/risk/current task · FloQast-style roster</div>
@@ -167,7 +184,7 @@ export default async function ControlCenterPage() {
                 <tbody>
                   {control.agents.map((agent) => (
                     <tr key={agent.id} className={agent.expectedStopped ? "is-neutral" : ""}>
-                      <td><Link href={`/agents/${agent.id}` as Route} className="strong-link">{agent.name}</Link><div className="mono tiny">{agent.slug}</div></td>
+                      <td><strong>{agent.name}</strong><div className="mono tiny">{agent.slug}</div></td>
                       <td><StatusBadge label={agent.scope} kind={agent.scope === "Company" ? "ok" : "muted"} /></td>
                       <td><StatusBadge label={agent.expectedStopped ? "정상 중지" : labelForStatus(agent.runtimeLabel)} kind={statusKind(agent.runtime)} /></td>
                       <td className="truncate-cell">{agent.currentTask ?? "현재 작업 없음"}</td>
@@ -219,16 +236,16 @@ export default async function ControlCenterPage() {
             </div>
           </div>
 
-          <div className="card control-span-5" id="approvals">
-            <div className="card-head"><div className="title">Approval console</div><div className="sub">· high-risk pinned</div><div className="right"><Link href="/approvals" className="btn ghost sm">전체</Link></div></div>
+          <div className="card control-span-5" id="control-risk">
+            <div className="card-head"><div className="title">Risk gate / approvals</div><div className="sub">· high-risk pinned · standalone approval menu retired</div></div>
             <div className="card-body control-approval-list">
               {control.approvals.slice(0, 8).map((approval) => (
                 <div key={approval.id} className={`approval-row action-row risk-${approval.riskLevel}`}>
-                  <Link href={`/approvals/${approval.id}` as Route} className="approval-main-link">
+                  <div className="approval-main-link">
                     <RiskBadge risk={approval.riskLevel} />
                     <div><strong>{approval.title}</strong><span>{approval.scope} · secret check: {approval.secretExposureCheck}</span></div>
                     <StatusBadge label={labelForStatus(approval.status)} kind={statusKind(approval.status)} />
-                  </Link>
+                  </div>
                   {approval.status === "pending" && (
                     <ApprovalActions approvalId={approval.id} status={approval.status} manualReportId={null} variant="compact" riskLevel={approval.riskLevel} />
                   )}
@@ -277,7 +294,7 @@ export default async function ControlCenterPage() {
             </div>
           </div>
 
-          <div className="card control-span-8" id="events">
+          <div className="card control-span-8" id="control-observability">
             <div className="card-head"><div className="title">Event stream</div><div className="sub">· latest 60 · secret-safe metadata</div></div>
             <div className="card-body flush control-table-wrap">
               <table className="tbl control-table">

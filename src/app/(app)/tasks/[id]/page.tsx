@@ -32,7 +32,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
       <div className="page-head">
         <div className="titles">
           <div className="row" style={{ gap: 8, marginBottom: 6 }}>
-            <Link href={task.agentId ? `/agents/${task.agentId}` : "/agents"} className="btn ghost sm">← 담당 에이전트</Link>
+            <Link href="/control#control-execution" className="btn ghost sm">← Control 실행</Link>
             <StatusBadge label={task.status} />
             <StatusBadge label={task.riskLevel} kind={task.riskLevel === "high" || task.riskLevel === "critical" ? "warn" : "ok"} />
           </div>
@@ -40,8 +40,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
           <div className="sub">{task.slug} · {task.agent?.name ?? "unassigned"} · {formatDateTimeKo(task.updatedAt)}</div>
         </div>
         <div className="actions">
-          <Link href="/events" className="btn sm">이벤트 스트림</Link>
-          <Link href="/artifacts" className="btn ghost sm">산출물</Link>
+          <Link href="/control#control-observability" className="btn sm">Control 관측성</Link>
+          <Link href="/projects" className="btn ghost sm">프로젝트</Link>
         </div>
       </div>
 
