@@ -7,12 +7,18 @@
 - Deploy the Mac mini runtime as production-private services: Colima/Docker for Postgres+Redis, launchd for the standalone Next.js app bound to `127.0.0.1:3000`, and a LAN auth proxy on `0.0.0.0:3010` that injects the private operator header but only allows client `192.168.35.244` plus local loopback. Do not expose this proxy publicly.
 - Company department agents should be autonomous where safe: a DB worker may execute low/medium internal running tasks and queue Discord result/status reports, but any high/critical or external-risk action must create an Ops Console approval/manual handoff. Discord is not an approval or command surface.
 - Department autonomy should be capability/adapter based, not only status based: `AgentCapability` records each adapter contract (`inputSchema`, `allowedTools`, `maxRisk`, expected artifact, success/failure criteria), and adapter v1 must create linked Artifacts/events while staying proposal-only until safer execution adapters are explicitly added.
-- Agent Harness rollout uses dom-company `agents/<agentSlug>/` as durable harness source of truth and Ops Console Runtime Harness Kernel as enforcement: preflight capability/policy gate, output schema validation, verifier gate, eval result recording, and rollback-capable harness version records.
-## 2026-05-20 — Agent Harness P2
+- Artifact preview path checks must use exact allowed root or descendant matching, not raw prefix matching, so sibling paths like `/Users/domclaw/ops-console-archive` cannot be treated as inside `/Users/domclaw/ops-console`.
+- Company autonomous completion spam is disabled by default: repeating agent/report workers, Hermes bridge execution, Discord outbox event creation, and direct Company Discord reporter sends require explicit env opt-in. Default reporting surface is Ops Console plus local dom-company artifacts only.
+- Ops Console Hermes execution now routes through dom-company worker profiles via `scripts/company_worker_handoff.py` instead of the `company` Discord gateway profile. The `company` profile remains the Discord router, worker gateways stay stopped, `design-agent` replaces the removed standalone `trading-agent`, and `trading-agent` is treated as unsupported in Ops Console autonomous routing.
+- Task detail observability should keep worker-authored reports separate from Hermes CLI transcripts: `/tasks/[id]` reads the report path plus `.run.json` and `<output>.stdout.log` sidecars, surfaces return code/stderr/output mode, and previews only allowlisted local artifact paths.
+- Company worker tasks should be Kanban-centered: Ops Console syncs namespaced rows in `~/.hermes/kanban.db` through `dom-company/scripts/company_kanban.py`; worker success lands in `review`, not `done`, so `main`/`project`/`hq` remains the acceptance gate.
+- Ops Console `/control` is the Company-native operator shell. Hermes Workspace is retired from live operation; old Workspace tab concepts may be used as reference-only IA, but Workspace must not be a state source, router target, or future shell.
 
-- Added agent quality dashboard data to `/agents` using `/api/agents/performance`.
-- Added P2 policy helpers for quality bands, rollback decisions, failure feedback routing, and weekly regression run slugs.
-- Added rollback API: `POST /api/agents/harness/rollback`.
-- Added weekly regression API/script: `POST /api/agents/harness/regression/run` and `src/agent-harness/runWeeklyRegressionEval.ts`.
-- Failure feedback loop routes failures into spec patch / skill candidate / memory candidate / eval case flags and creates regression eval cases for schema/verifier failures.
-- Verification: lint passed with existing font warning, tests 98 passed, build passed.
+- Project/agent conversation surfaces are derived first, not schema-migrated: `Event`/`Task`/`Artifact` metadata now carries `projectSlug`, `agentSlug`, `workstream`, `threadKey`, `threadPolicy: reuse_project_agent_thread`, and role-profile `memoryOwner/contextOwner`; `/projects/[id]/conversations` presents those records as stable Discord-like project/agent/workstream threads for active Company scope (`ops-console`, `alpha-terminal`).
+
+- Local Agent Control Center uses Ops Console DB/server aggregation as the canonical state source. Hermes Workspace is retired and appears only as reference-only history; `/control` is read-only until separate approval adds audited management actions.
+- Worker gateway `stopped` is represented as `stopped by design · 정상`, not an incident, so operators do not confuse intentionally stopped gateway profiles with outages.
+- Company/Auth/Crypto/Alpha/X-CDP boundaries are displayed as operational scope/incident context; Auth and Crypto are not merged into Company active task scope.
+
+- `/control` approval actions may reuse existing audited approval APIs for pending approvals after explicit operator approval; high/critical actions still honor the existing manual-handoff policy and must not bypass command-worker risk gates.
+- `/control` reference-applied UI adopts saved agent-console references as visual/IA guidance only: global command bar, route rail, session timeline, right inspector, and dense registry/observability patterns are allowed, but command palette/management execution remains non-functional unless separately approved.
