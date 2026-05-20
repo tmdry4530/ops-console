@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { requiresManualHandoff } from "@/lib/auth";
 import { evaluateExternalSendPermission } from "./external-send-policy";
 import { commandScopeDecision } from "./command-scope-policy";
+import { enforcePolicyForAction } from "./policy-enforcement";
 import { completionVerificationCreate, verifiedCompletionTaskData } from "./task-state-machine";
 import type { ProjectStatus, SystemScope } from "@prisma/client";
 
@@ -77,6 +78,19 @@ function isMetadataRecord(metadata: unknown): metadata is Record<string, unknown
 
 export async function processCommand(command: QueuedCommandRecord, port: CommandExecutionPort): Promise<CommandExecutionResult> {
   const payload = readPayload(command.payload);
+  const policyDecision = await enforcePolicyForAction({ actionType: command.actionType, riskLevel: command.riskLevel as never, systemScope: command.systemScope });
+  if (policyDecision.decision === "block") {
+    const failed = result("failed", `policy_block:${policyDecision.reason}`);
+    await port.failCommand(command.id, failed);
+    await port.createCommandEvent({ type: "command.blocked_policy", severity: "warning", message: `Command blocked by policy: ${policyDecision.reason}`, commandQueueId: command.id, approvalId: command.approvalId, projectId: payload.projectId, taskId: payload.taskId, metadata: { actionType: command.actionType, riskLevel: command.riskLevel, policyDecision: policyDecision.decision, policySource: policyDecision.source } });
+    return failed;
+  }
+  if (policyDecision.decision === "require_manual_handoff") {
+    const failed = result("failed", "manual_handoff_required");
+    await port.failCommand(command.id, failed);
+    await port.createCommandEvent({ type: "command.manual_handoff_required", severity: "warning", message: `Command requires manual handoff: ${policyDecision.reason}`, commandQueueId: command.id, approvalId: command.approvalId, projectId: payload.projectId, taskId: payload.taskId, metadata: { actionType: command.actionType, riskLevel: command.riskLevel, policyDecision: policyDecision.decision, policySource: policyDecision.source, policyReason: policyDecision.reason } });
+    return failed;
+  }
   const scopeDecision = commandScopeDecision({ actionType: command.actionType, riskLevel: command.riskLevel, systemScope: command.systemScope, payload: command.payload });
   if (!scopeDecision.allowed) {
     const failed = result("failed", scopeDecision.reason);

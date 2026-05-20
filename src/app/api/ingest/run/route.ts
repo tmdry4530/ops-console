@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readOperatorIdentity } from "@/lib/auth";
+import { requireWriteAccess, auditWriteEvent } from "@/lib/write-rbac";
 import { runIngestionSkeleton } from "@/server/ingest";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const identity = readOperatorIdentity(request);
-  if (!identity) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const auth = await requireWriteAccess(request, "ingest:run");
+  if (auth instanceof NextResponse) return auth;
   const summary = await runIngestionSkeleton();
-  return NextResponse.json({ summary });
+  await auditWriteEvent({ type: "ingest.run.requested", message: "Ingestion run requested", actorEmail: auth.identity.email, traceId: auth.traceId, metadata: { summary } });
+  return NextResponse.json({ summary, traceId: auth.traceId });
 }

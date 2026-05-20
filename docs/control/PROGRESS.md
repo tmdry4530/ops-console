@@ -226,3 +226,19 @@ Passed:
   - Playwright visual QA: `/tmp/control-live-visual-qa.png`, no horizontal overflow, command center layout 확인.
 - schema/API 변경: 없음. 기존 `/api/control/summary`와 approval API 유지.
 - secret/cookie/token/browser storage 접근: 없음.
+## 2026-05-20 — AgentOps Control Plane hardening branch
+
+- Branch/worktree: `/tmp/ops-agentops-upgrade` on `feat/agentops-control-plane-upgrade`; main branch was not edited directly.
+- Centralized write authorization and audit helpers in `src/lib/write-rbac.ts`; write APIs now use RBAC checks and audited Events for agent actions, instructions, approval decisions, harness rollback/regression, ingest run, and command compile.
+- Added Policy table enforcement path in `src/server/policy-enforcement.ts` and wired it into command execution before scope/external-send execution. Missing/unreachable Policy DB falls back to deterministic default policy for tests and safe operation.
+- Added canonical DB-backed agent registry helper in `src/server/agent-registry.ts`; Hermes Workspace state is not a canonical source.
+- Replaced ad-hoc harness output checks with AJV JSON Schema validation while preserving semantic verifier failure classes such as `NO_TEST` and `NO_EVIDENCE`.
+- Added real trace detail route `/traces/[traceId]` backed by Event, Task, Approval, CommandQueue, Run/Step, ModelCall, ToolCall, and Verification records.
+- Extended `/agents/[id]` with harness management visibility for versions, evals, and failures.
+- Connected `/control` command bar to Command Compiler MVP via `POST /api/control/command/compile`, with compile/queue/policy decision/audit behavior.
+- Converted local system monitor and `/control` summary to probe-backed local system status and ModelCall/ToolCall aggregate cost/token/latency metrics.
+- Strengthened command and agent workers with bounded iteration loops for queue draining.
+- Verification passed before PR: focused command/harness regression, full `pnpm test` (34 files / 109 tests), `pnpm typecheck`, `pnpm lint` (existing custom-font warning only), and `pnpm build`.
+- Runtime deploy/PR/Ops records are still pending until branch is committed, reviewed, merged, and smoke-tested against the private runtime.
+- Secret/token/cookie/browser storage/DB URL values were not read or recorded; only non-secret placeholder DB connection strings were used for local verification.
+
