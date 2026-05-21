@@ -43,6 +43,7 @@ export default async function ObservePage() {
           </div>
           <div className="control-hero-actions">
             <div className="live-pill"><span /> Live · {formatTimeKo(control.generatedAt)}</div>
+            <Link href={"/news" as never} className="btn ghost sm">News dashboard</Link>
             <Link href={"/observe/agents" as never} className="btn ghost sm">Agent fleet 상세</Link>
           </div>
         </section>
