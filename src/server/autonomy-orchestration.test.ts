@@ -6,8 +6,8 @@ describe("autonomy orchestration state", () => {
     const state = parentDelegationStateAfterDispatch(7, "2026-05-21T02:00:00.000Z");
 
     expect(state.parentTask).toMatchObject({
-      status: "running",
-      nextAction: "delegated/waiting_children · 7 child tasks dispatched at 2026-05-21T02:00:00.000Z"
+      status: "queued",
+      nextAction: "waiting_children · 0/7 child tasks terminal · currentStep=awaiting_child_results · statusReason=delegation_completed"
     });
     expect(state.parentEventMetadata).toMatchObject({ orchestrationState: "waiting_children", childTaskCount: 7 });
     expect(state.mainAgent).toEqual({ status: "idle", currentTask: null });
@@ -18,10 +18,10 @@ describe("autonomy orchestration state", () => {
       shouldCreateAggregation: true,
       aggregationTask: {
         slugSuffix: "aggregation-20260521020000000",
-        status: "running",
-        nextAction: "main-agent aggregation running · child terminal summaries/verifier evidence required"
+        status: "queued",
+        nextAction: "main-agent aggregation queued · verifier evidence required before parent completion"
       },
-      mainAgent: { status: "running", currentTask: "HQ aggregation/review" }
+      mainAgent: { status: "idle", currentTask: null }
     });
 
     expect(planAggregationAfterChildTerminals({ parentTaskId: "parent", childStatuses: ["completed", "running"], now: new Date("2026-05-21T02:00:00.000Z") }).shouldCreateAggregation).toBe(false);

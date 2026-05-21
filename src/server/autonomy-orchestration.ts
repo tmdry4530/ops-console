@@ -11,9 +11,9 @@ export function parentDelegationStateAfterDispatch(childTaskCount: number, isoTi
 } {
   return {
     parentTask: {
-      status: "running",
+      status: "queued",
       blocker: null,
-      nextAction: `delegated/waiting_children · ${childTaskCount} child tasks dispatched at ${isoTimestamp}`
+      nextAction: `waiting_children · 0/${childTaskCount} child tasks terminal · currentStep=awaiting_child_results · statusReason=delegation_completed`
     },
     parentEventMetadata: { orchestrationState: "waiting_children", childTaskCount, delegatedAt: isoTimestamp },
     mainAgent: { status: "idle", currentTask: null }
@@ -35,7 +35,7 @@ export function planAggregationAfterChildTerminals(input: { parentTaskId: string
     nextAction: string;
   };
   parentTask?: { status: TaskStatus; nextAction: string; blocker: null };
-  mainAgent?: { status: AgentStatus; currentTask: string };
+  mainAgent?: { status: AgentStatus; currentTask: string | null };
   eventMetadata?: { orchestrationState: "aggregation_running"; parentTaskId: string; childTaskCount: number; aggregationStartedAt: string };
 } {
   if (input.childStatuses.length === 0 || !input.childStatuses.every(isTerminalTaskStatus)) {
@@ -47,17 +47,17 @@ export function planAggregationAfterChildTerminals(input: { parentTaskId: string
     aggregationTask: {
       slugSuffix: `aggregation-${slugStamp(input.now)}`,
       title: "HQ aggregation · child task terminal review",
-      status: "running",
+      status: "queued",
       riskLevel: "low",
       summary: `Aggregate child terminal outputs for parent task ${input.parentTaskId}`,
-      nextAction: "main-agent aggregation running · child terminal summaries/verifier evidence required"
+      nextAction: "main-agent aggregation queued · verifier evidence required before parent completion"
     },
     parentTask: {
-      status: "running",
+      status: "queued",
       blocker: null,
-      nextAction: `aggregation_running · child tasks terminal at ${input.now.toISOString()}`
+      nextAction: `aggregation_pending · child tasks terminal at ${input.now.toISOString()} · verifier gate required before completion`
     },
-    mainAgent: { status: "running", currentTask: "HQ aggregation/review" },
+    mainAgent: { status: "idle", currentTask: null },
     eventMetadata: {
       orchestrationState: "aggregation_running",
       parentTaskId: input.parentTaskId,

@@ -7,7 +7,9 @@ import {
   labelForHealth,
   labelForRisk,
   labelForRouteSegment,
-  labelForStatus
+  labelForStatus,
+  labelForTaskOperationalStatus,
+  taskChildProgressLabel
 } from "./korean-labels";
 
 describe("korean-friendly labels", () => {
@@ -53,6 +55,13 @@ describe("korean-friendly labels", () => {
     expect(labelForAgentWorkMode({ executionMode: "hermes_profile_direct_background", frequency: "ad-hoc background job; not cron" })).toBe("Hermes Company 백그라운드 작업 · 수시 실행");
     expect(labelForAgentWorkMode({ frequency: "every 60s" })).toBe("작업 빈도: every 60s");
     expect(labelForAgentWorkMode({})).toBe("작업 빈도 정보 없음");
+  });
+
+  it("formats orchestration parent display state and child progress without showing running", () => {
+    const parent = { status: "queued", nextAction: "waiting_children · 2/5 child tasks terminal · currentStep=awaiting_child_results · statusReason=delegation_completed" };
+    expect(labelForTaskOperationalStatus(parent)).toBe("하위 작업 대기");
+    expect(taskChildProgressLabel(parent)).toBe("child progress 2/5");
+    expect(labelForTaskOperationalStatus({ status: "queued", nextAction: "aggregation_pending · 5/5 child tasks terminal" })).toBe("취합 대기");
   });
 
   it("formats timestamps for Korean operators", () => {

@@ -1,3 +1,41 @@
+## Latest ops handoff — 2026-05-21 20:02 KST
+
+Fixed the HQ/main orchestration runtime regression where parent tasks and parent agents returned to `running` while delegated child tasks were still executing.
+
+Changed:
+
+- `src/server/ops-monitor.ts` / `.test.ts` — extracted runtime transition planning, changed child-in-progress parent target from `running` to delegated/waiting equivalent (`queued` + metadata/nextAction because `TaskStatus` has no `waiting_children`), forces parent HQ/main agent to `idle/currentTask=null`, creates queued aggregation task when all child tasks are terminal, and prevents parent completion before aggregation verifier evidence.
+- `src/server/autonomy-orchestration.ts` / `.test.ts` — dispatch plan now records parent as waiting for children, not running; aggregation plan creates queued aggregation work and leaves main-agent idle until the queued aggregation task is actually picked up.
+- `src/server/control-center.ts` — active task derivation ignores delegated orchestration parents so HQ/main agents do not look busy during child execution.
+- `src/lib/korean-labels.ts` / `.test.ts` — added operational task status label and child progress label helpers for delegated parents.
+- `src/app/(app)/control/page.tsx` and `src/app/(app)/tasks/[id]/page.tsx` — parent rows/details show delegated/waiting state and child terminal progress count instead of raw `running`.
+- `docs/control/DECISIONS.md` and `docs/control/PROGRESS.md` — recorded the non-running parent orchestration model and verifier-gated aggregation boundary.
+
+Runtime/deploy:
+
+- Synced source to `/Users/domclaw/ops-console-runtime`, preserving runtime `.env`.
+- Rebuilt runtime and restarted/kickstarted private app/proxy services.
+- Ran runtime `syncHqOrchestrationRuntime()` once; reconciled existing orchestration parents into aggregation-pending delegated state and queued aggregation tasks.
+- No Prisma schema migration and no public bind/routing change.
+
+Verification:
+
+- Focused tests passed: `pnpm test -- src/server/ops-monitor.test.ts src/server/autonomy-orchestration.test.ts src/lib/korean-labels.test.ts`.
+- Full source verification passed: `pnpm test` — 35 files / 119 tests.
+- `pnpm typecheck` passed.
+- `pnpm build` passed.
+- `pnpm lint` passed with existing custom-font warning only.
+- Runtime build passed.
+- Health smoke passed: `GET http://127.0.0.1:3000/api/health`, `GET http://127.0.0.1:3010/api/health`.
+- `/control` private proxy marker smoke passed.
+- Runtime DB smoke shows `main-agent` and `hq-agent` idle/currentTask null after reconcile.
+
+Safety:
+
+- Parent completion remains blocked until aggregation verifier evidence exists.
+- Discord stays report-only; no routine child progress reports were added.
+- Secret/token/cookie/browser-storage/private key/DB URL values were not printed or logged.
+
 ## Latest ops handoff — 2026-05-21 15:44 KST
 
 Fixed the Project Workspace role-card readability regression shown in the operator screenshot.

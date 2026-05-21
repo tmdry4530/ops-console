@@ -6,7 +6,7 @@ import { EventTimeline } from "@/components/event-timeline";
 import { MetricCard } from "@/components/metric-card";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/lib/db";
-import { formatDateTimeKo } from "@/lib/korean-labels";
+import { formatDateTimeKo, labelForTaskOperationalStatus, taskChildProgressLabel } from "@/lib/korean-labels";
 import { artifactPreview, hermesExecutionEvents, hermesMetadata, hermesRunSidecars, shortLog } from "@/server/task-observability";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +69,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   const traceId = traceIdFromEvents(task.events, task.id);
   const hasVerification = task.events.some((event) => /verification|verifier|passed/i.test(`${event.type} ${event.message}`));
   const executionReceiptState = receiptState(task.status, task.approvals, task.artifacts.length, hasVerification);
+  const childProgress = taskChildProgressLabel(task);
 
   return (
     <>
@@ -76,7 +77,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         <div className="titles">
           <div className="row" style={{ gap: 8, marginBottom: 6 }}>
             <Link href="/control#agents" className="btn ghost sm">← 담당 에이전트</Link>
-            <StatusBadge label={task.status} />
+            <StatusBadge label={labelForTaskOperationalStatus(task)} />
+            {childProgress && <StatusBadge label={childProgress} kind="info" />}
             <StatusBadge label={task.riskLevel} kind={task.riskLevel === "high" || task.riskLevel === "critical" ? "warn" : "ok"} />
           </div>
           <h1>{task.title}</h1>
@@ -91,7 +93,7 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
       <div className="grid-12" style={{ marginBottom: 20 }}>
         <div className="span-3"><MetricCard label="Receipt" value={executionReceiptState} delta={hasVerification ? "verifier evidence" : "verifier pending"} /></div>
-        <div className="span-3"><MetricCard label="상태" value={task.status} /></div>
+        <div className="span-3"><MetricCard label="상태" value={labelForTaskOperationalStatus(task)} delta={childProgress ?? undefined} /></div>
         <div className="span-3"><MetricCard label="Hermes 이벤트" value={String(hermesEvents.length)} /></div>
         <div className="span-3"><MetricCard label="산출물" value={String(task.artifacts.length)} /></div>
       </div>

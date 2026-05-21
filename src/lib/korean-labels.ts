@@ -66,6 +66,22 @@ export function labelForStatus(status: string): string {
   return STATUS_LABELS[status] ?? status.replace(/_/g, " ");
 }
 
+export function labelForTaskOperationalStatus(task: { status: string; nextAction?: string | null; summary?: string | null }): string {
+  const text = `${task.nextAction ?? ""} ${task.summary ?? ""}`;
+  if (/waiting_children|awaiting_child_results|delegation_completed/i.test(text)) return "하위 작업 대기";
+  if (/aggregation_pending/i.test(text)) return "취합 대기";
+  if (/awaiting_verifier|verifier pending|검증 대기/i.test(text)) return "검증 대기";
+  if (/final_completed/i.test(text)) return "최종 완료";
+  return labelForStatus(task.status);
+}
+
+export function taskChildProgressLabel(task: { nextAction?: string | null; summary?: string | null }): string | null {
+  const text = `${task.nextAction ?? ""} ${task.summary ?? ""}`;
+  const match = text.match(/(\d+)\/(\d+) child tasks terminal/i);
+  if (!match) return null;
+  return `child progress ${match[1]}/${match[2]}`;
+}
+
 export function labelForHealth(health: string): string {
   return HEALTH_LABELS[health] ?? labelForStatus(health);
 }

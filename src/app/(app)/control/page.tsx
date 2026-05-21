@@ -4,7 +4,7 @@ import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { GlobalCommandBar } from "@/components/global-command-bar";
 import { LiveInterventionPanel } from "@/components/live-intervention-panel";
-import { formatTimeKo, labelForStatus } from "@/lib/korean-labels";
+import { formatTimeKo, labelForStatus, labelForTaskOperationalStatus, taskChildProgressLabel } from "@/lib/korean-labels";
 import { getControlCenterSummary } from "@/server/control-center";
 
 export const dynamic = "force-dynamic";
@@ -95,7 +95,7 @@ export default async function ControlCenterPage() {
                   {activeTasks.map((task) => (
                     <tr key={task.id}>
                       <td><Link href={`/tasks/${task.id}` as never} className="strong-link">{task.title}</Link><div className="tiny">{task.projectName}</div></td>
-                      <td><StatusBadge label={labelForStatus(task.status)} kind={statusKind(task.status)} /></td>
+                      <td><StatusBadge label={labelForTaskOperationalStatus(task)} kind={statusKind(task.status)} />{taskChildProgressLabel(task) && <div className="tiny">{taskChildProgressLabel(task)}</div>}</td>
                       <td>{task.agentName}</td>
                       <td><RiskBadge risk={task.riskLevel} /></td>
                       <td className="truncate-cell">{task.nextAction ?? task.blocker ?? "대기"}</td>

@@ -99,6 +99,11 @@ function scopeForAgent(slug: string): "Company" | "Auth" | "Crypto" | "Alpha" | 
   return "Shared";
 }
 
+function isDelegatedOrchestrationParent(task: Pick<Task, "status" | "nextAction" | "summary">): boolean {
+  const text = `${task.nextAction ?? ""} ${task.summary ?? ""}`;
+  return task.status !== "running" && /waiting_children|awaiting_child_results|delegation_completed|aggregation_pending|verifier pending/i.test(text);
+}
+
 function riskWeight(risk: RiskLevel) {
   return { critical: 4, high: 3, medium: 2, low: 1 }[risk];
 }
@@ -144,6 +149,7 @@ export async function getControlCenterSummary(now = new Date()) {
     const runtime = summarizeAgentOps(agent, now);
     const agentTasks = tasks.filter((task) => task.agentId === agent.id);
     const activeTasks = agentTasks.filter((task) => ACTIVE_TASK_STATUSES.includes(task.status as (typeof ACTIVE_TASK_STATUSES)[number]));
+    const executableActiveTasks = activeTasks.filter((task) => !isDelegatedOrchestrationParent(task));
     const metadata = safeMetadata(agent.metadata);
     const stoppedByDesign = expectedStopped(agent);
     const queueDepth = agentTasks.filter((task) => task.status === "queued").length;
@@ -157,8 +163,8 @@ export async function getControlCenterSummary(now = new Date()) {
       runtime: stoppedByDesign ? "idle" : runtime.runtime,
       runtimeLabel: stoppedByDesign ? "stopped by design" : runtime.runtime,
       heartbeatAt: agent.heartbeatAt,
-      currentTask: activeTasks[0]?.title ?? agent.currentTask,
-      currentTaskId: activeTasks[0]?.id ?? null,
+      currentTask: executableActiveTasks[0]?.title ?? agent.currentTask,
+      currentTaskId: executableActiveTasks[0]?.id ?? null,
       model: typeof metadata.model === "string" ? metadata.model : "unknown",
       costToday: readNumber(agent.metadata, "costToday") ?? 0,
       tokensToday: readNumber(agent.metadata, "tokensToday") ?? 0,
@@ -237,7 +243,7 @@ export async function getControlCenterSummary(now = new Date()) {
 
   const highRiskApprovals = approvalRows.filter((approval) => approval.riskLevel === "high" || approval.riskLevel === "critical");
   const autonomyDecisionEvents = eventRows.filter((event) => event.type === "autonomy.governor.decision");
-  const waitingChildren = taskRows.filter((task) => task.status === "running" && /waiting_children|delegated/i.test(`${task.nextAction ?? ""} ${task.summary ?? ""}`));
+  const waitingChildren = taskRows.filter((task) => /waiting_children|awaiting_child_results|delegation_completed/i.test(`${task.nextAction ?? ""} ${task.summary ?? ""}`));
   const pendingHumanDecisions = approvalRows.filter((approval) => ["pending", "manual_handoff", "needs_changes"].includes(approval.status));
   const commandRows = commands.map((command) => {
     const payload = isRecord(command.payload) ? command.payload : {};
