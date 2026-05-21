@@ -207,28 +207,28 @@ vi.mock("@/server/control-center", () => ({
   getControlCenterSummary: vi.fn(async () => mockSummary)
 }));
 
-describe("ControlCenterPage reference-driven UI", () => {
-  it("applies the reference board layout: command bar, observability strip, session list, and inspector", async () => {
+describe("ControlCenterPage workflow-mode UI", () => {
+  it("keeps Control as a manipulation board and moves observation/decision detail out", async () => {
     render(await ControlCenterPage());
 
-    expect(screen.getByText("Global Command Bar")).toBeInTheDocument();
-    expect(screen.getByText("/route /run /approve /pause agent")).toBeInTheDocument();
-    expect(screen.getByText("Observability Strip")).toBeInTheDocument();
-    expect(screen.getByText("Cost/token"));
-    expect(screen.getAllByText("Agent Registry Table").length).toBeGreaterThan(1);
-    expect(screen.getAllByText("Session / Run Timeline").length).toBeGreaterThan(1);
-    expect(screen.getByText("Right Inspector")).toBeInTheDocument();
-    expect(screen.getByText(/Selected run.*tool\/model\/artifact\/verification/)).toBeInTheDocument();
-    expect(screen.getByText("Kiro-style executor")).toBeInTheDocument();
-    expect(screen.getByText("FloQast-style roster")).toBeInTheDocument();
-    expect(screen.getByText("LaunchDarkly-style traces")).toBeInTheDocument();
-    expect(screen.getByText("OpenSea-style dense grid")).toBeInTheDocument();
-    expect(screen.getByText("Company-native Monitor / Manage")).toBeInTheDocument();
-    expect(screen.getByText("Hermes Workspace retired")).toBeInTheDocument();
+    expect(screen.getByText("Control · 조작판")).toBeInTheDocument();
+    expect(screen.getByText("명령 / 자율성 / 개입 / Emergency Control")).toBeInTheDocument();
+    expect(screen.getByLabelText("Global Command Bar")).toBeInTheDocument();
+    expect(screen.getByLabelText("Command Compiler")).toBeInTheDocument();
+    expect(screen.getByText("Critical summary")).toBeInTheDocument();
     expect(screen.getByText("Autonomy Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Live Intervention Panel")).toBeInTheDocument();
-    expect(screen.getByText("Autonomy Policy Matrix")).toBeInTheDocument();
-    expect(screen.getByText("Pending Human Decisions")).toBeInTheDocument();
+    expect(screen.getByText("Active Orchestrations")).toBeInTheDocument();
+    expect(screen.getByText("Agent Control Drawer")).toBeInTheDocument();
+    expect(screen.getByText("관측 계기판")).toBeInTheDocument();
+    expect(screen.getByText("결정 대기열")).toBeInTheDocument();
+
+    expect(screen.queryByText("Agent Registry Table")).not.toBeInTheDocument();
+    expect(screen.queryByText("Event stream")).not.toBeInTheDocument();
+    expect(screen.queryByText("Trace preview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Company-native Monitor / Manage")).not.toBeInTheDocument();
+    expect(screen.queryByText("Autonomy Policy Matrix")).not.toBeInTheDocument();
+    expect(screen.queryByText("Approval console")).not.toBeInTheDocument();
     expect(screen.queryByText("hermes-workspace")).not.toBeInTheDocument();
   });
 });

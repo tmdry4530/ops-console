@@ -57,7 +57,14 @@ function safeMetadata(value: unknown): SafeRecord {
     "stage",
     "action",
     "targetAgentId",
-    "scopeLimit"
+    "scopeLimit",
+    "compiledCommand",
+    "parentTaskId",
+    "aggregationTaskId",
+    "runId",
+    "tool",
+    "verifier",
+    "reportPath"
   ];
   return Object.fromEntries(
     allowlist

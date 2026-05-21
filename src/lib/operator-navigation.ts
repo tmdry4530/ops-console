@@ -1,9 +1,10 @@
-export type OperatorNavigationKey = "control" | "projects";
+export type OperatorNavigationKey = "control" | "projects" | "decisions" | "observe";
 
 export type OperatorNavigationItem = {
   key: OperatorNavigationKey;
   label: string;
   href: string;
+  mode: "control" | "operations" | "decision" | "observe";
 };
 
 export type RetiredOperatorRoute = {
@@ -13,17 +14,19 @@ export type RetiredOperatorRoute = {
 };
 
 export const operatorNavigationItems: OperatorNavigationItem[] = [
-  { key: "control", label: "Control", href: "/control" },
-  { key: "projects", label: "프로젝트", href: "/projects" }
+  { key: "control", label: "Control", href: "/control", mode: "control" },
+  { key: "projects", label: "프로젝트", href: "/projects", mode: "operations" },
+  { key: "decisions", label: "결정", href: "/decisions", mode: "decision" },
+  { key: "observe", label: "관측", href: "/observe", mode: "observe" }
 ];
 
 export const retiredOperatorRoutes: RetiredOperatorRoute[] = [
-  { href: "/agents", replacement: "/control", reason: "standalone agent page was removed; agent runtime/quality belongs inside Control responsibility sections" },
-  { href: "/approvals", replacement: "/control", reason: "approval gates are now a Control risk responsibility, not a separate menu" },
-  { href: "/events", replacement: "/control", reason: "event stream is now Control observability, not a standalone menu" },
-  { href: "/artifacts", replacement: "/control", reason: "artifact evidence is surfaced through Control/task/project context instead of a separate menu" },
-  { href: "/dashboard", replacement: "/control", reason: "duplicated by the canonical Control Center" },
-  { href: "/reports", replacement: "/control", reason: "Discord report firehose is disabled; evidence belongs in Control observability" },
-  { href: "/settings", replacement: "/control", reason: "static placeholder settings were not operator-actionable" },
-  { href: "/policies", replacement: "/control", reason: "policy state is surfaced through gates instead of a dead admin menu" }
+  { href: "/agents", replacement: "/observe/agents", reason: "agent status is observation, not a standalone CRUD menu; agent intervention stays in Control" },
+  { href: "/approvals", replacement: "/decisions", reason: "approval is now one kind of human decision queue" },
+  { href: "/events", replacement: "/observe", reason: "event stream belongs to the read-only Observe dashboard" },
+  { href: "/artifacts", replacement: "/projects", reason: "artifact evidence stays in project/task context; future vault is separate from CRUD artifacts" },
+  { href: "/dashboard", replacement: "/observe", reason: "dashboard metrics are split into Observe instead of a duplicated dashboard menu" },
+  { href: "/reports", replacement: "/projects", reason: "reports are project/task artifacts, not a standalone report CRUD surface" },
+  { href: "/settings", replacement: "/control", reason: "static settings remain out of the operator top-level until actionable controls exist" },
+  { href: "/policies", replacement: "/control", reason: "policy affects command/autonomy control but is not restored as a standalone CRUD menu" }
 ];

@@ -7,7 +7,9 @@ import { Icons } from "./icons";
 
 const iconByKey = {
   control: Icons.dashboard,
-  projects: Icons.projects
+  projects: Icons.projects,
+  decisions: Icons.approvals,
+  observe: Icons.events
 } as const;
 
 export function SidebarNav({ pendingCount: _pendingCount }: { pendingCount: number }) {

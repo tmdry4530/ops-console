@@ -530,10 +530,19 @@ ul.bare li:hover { background: var(--bg-2); }
   background: linear-gradient(90deg, rgba(113,112,255,0.10), rgba(255,255,255,0.025));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
+.control-command-bar > .agentops-command-compiler { grid-column: 1 / -1; }
 .control-command-bar strong { display: block; margin-top: 3px; color: var(--text-0); font-size: 12px; font-family: var(--font-mono); font-weight: 500; }
 .control-command-input { min-height: 38px; display: flex; align-items: center; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line-1); background: rgba(2,6,23,0.42); color: var(--text-2); font-size: 13px; }
-.control-command-tags { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
-.control-command-tags span, .reference-chip { border: 1px solid var(--line-1); border-radius: 999px; padding: 5px 8px; color: var(--text-2); background: rgba(255,255,255,0.025); font-size: 11px; white-space: nowrap; }
+.control-command-tags, .command-tags { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.control-command-tags span, .command-tags span, .command-tags button, .reference-chip { border: 1px solid var(--line-1); border-radius: 999px; padding: 5px 8px; color: var(--text-2); background: rgba(255,255,255,0.025); font-size: 11px; white-space: nowrap; }
+.command-tags button { cursor: pointer; }
+.agentops-command-compiler { display: grid; gap: 10px; }
+.command-line input { width: 100%; min-height: 42px; border-radius: 10px; border: 1px solid var(--line-2); background: rgba(2,6,23,0.58); color: var(--text-0); padding: 0 14px; font-family: var(--font-mono); outline: none; }
+.command-line input:focus { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-soft); }
+.command-compiler-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(180px, 0.8fr) minmax(220px, 1fr); gap: 10px; align-items: start; }
+.compiler-result { display: grid; gap: 5px; border: 1px solid var(--line-1); border-radius: 10px; padding: 10px; background: rgba(255,255,255,0.025); }
+.compiler-result.danger { border-color: color-mix(in oklab, var(--danger) 38%, transparent); background: var(--danger-soft); }
+.command-compiled-payload { margin: 0; }
 .live-pill { display: inline-flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-1); color: var(--text-1); background: var(--bg-2); font-size: 12px; }
 .live-pill span { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
 .control-critical { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border: 1px solid color-mix(in oklab, var(--danger) 45%, transparent); border-radius: 14px; background: linear-gradient(90deg, var(--danger-soft), transparent 62%), var(--bg-1); }
@@ -628,9 +637,15 @@ tr.is-neutral { opacity: 0.78; }
 .workspace-next-action, .workspace-blocker { margin-top: 6px; font-size: 11.5px; line-height: 1.35; }
 .workspace-next-action { color: var(--accent); }
 .workspace-blocker { color: var(--warn); }
+.ops-block { border: 1px solid var(--line-1); border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.025); }
+.ops-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-top: 8px; border: 1px solid var(--line-1); border-radius: 9px; padding: 8px; color: var(--text-1); min-width: 0; }
+.ops-row span { min-width: 0; overflow-wrap: anywhere; }
+.ops-row.warn { color: var(--warn); border-color: color-mix(in oklab, var(--warn) 30%, transparent); background: var(--warn-soft); }
+.lineage-item { display: grid; gap: 8px; border: 1px solid var(--line-1); border-radius: 10px; padding: 10px; background: rgba(255,255,255,0.025); }
+.lineage-item code { display: block; margin-top: 3px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-0); font-size: 11px; }
 
 @media (max-width: 1180px) {
-  .control-command-bar, .control-console-frame { grid-template-columns: 1fr; }
+  .control-command-bar, .control-console-frame, .command-compiler-grid { grid-template-columns: 1fr; }
   .control-command-tags { justify-content: flex-start; }
   .control-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .control-span-4, .control-span-5, .control-span-7, .control-span-8 { grid-column: span 12; }

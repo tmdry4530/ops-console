@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArtifactLink } from "@/components/artifact-link";
@@ -24,6 +25,24 @@ function MiniField({ label, value, warn }: { label: string; value: unknown; warn
   );
 }
 
+function traceIdFromEvents(events: Array<{ metadata: unknown; taskId: string | null; id: string }>, fallback: string) {
+  for (const event of events) {
+    if (event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata)) {
+      const traceId = (event.metadata as Record<string, unknown>).traceId;
+      if (typeof traceId === "string" && traceId.length > 0) return traceId;
+    }
+  }
+  return fallback;
+}
+
+function receiptState(status: string, approvals: Array<{ status: string }>, artifactCount: number, hasVerification: boolean) {
+  if (status === "completed" && !hasVerification) return "completed_without_verifier_evidence";
+  if (approvals.some((approval) => ["pending", "approved_waiting_execution", "executing", "manual_handoff"].includes(approval.status))) return "waiting_human_decision";
+  if (status === "running") return "executing";
+  if (artifactCount > 0) return "evidence_ready";
+  return status;
+}
+
 export default async function TaskDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const task = await db.task.findUnique({
@@ -47,6 +66,9 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
   const previews = await Promise.all(task.artifacts.slice(0, 3).map(async (artifact) => ({ artifact, preview: await artifactPreview(artifact) })));
   const stderr = textValue(meta.stderr, "");
   const hasStderr = stderr.trim().length > 0;
+  const traceId = traceIdFromEvents(task.events, task.id);
+  const hasVerification = task.events.some((event) => /verification|verifier|passed/i.test(`${event.type} ${event.message}`));
+  const executionReceiptState = receiptState(task.status, task.approvals, task.artifacts.length, hasVerification);
 
   return (
     <>
@@ -62,16 +84,27 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
         </div>
         <div className="actions">
           <Link href="/control#events" className="btn sm">이벤트 스트림</Link>
+          <Link href={`/traces/${traceId}` as Route} className="btn sm">Trace lineage</Link>
           <Link href="/control" className="btn ghost sm">산출물</Link>
         </div>
       </div>
 
       <div className="grid-12" style={{ marginBottom: 20 }}>
+        <div className="span-3"><MetricCard label="Receipt" value={executionReceiptState} delta={hasVerification ? "verifier evidence" : "verifier pending"} /></div>
         <div className="span-3"><MetricCard label="상태" value={task.status} /></div>
         <div className="span-3"><MetricCard label="Hermes 이벤트" value={String(hermesEvents.length)} /></div>
         <div className="span-3"><MetricCard label="산출물" value={String(task.artifacts.length)} /></div>
-        <div className="span-3"><MetricCard label="exit" value={textValue(runJson.returncode ?? meta.exitCode, "-")} delta={hasStderr ? "stderr 있음" : "stderr 없음"} /></div>
       </div>
+
+      <section className="card" style={{ marginBottom: 16 }} aria-label="Execution Receipt">
+        <div className="card-head"><div className="title">Execution receipt</div><div className="sub">· intent → task → artifacts → verifier → report</div><div className="right"><Link href={`/traces/${traceId}` as Route} className="btn ghost sm">전체 lineage</Link></div></div>
+        <div className="card-body grid-12" style={{ gap: 10 }}>
+          <div className="span-3"><MiniField label="Trace" value={traceId} /></div>
+          <div className="span-3"><MiniField label="Project" value={task.project?.name ?? "unassigned"} /></div>
+          <div className="span-3"><MiniField label="Agent" value={task.agent?.slug ?? "unassigned"} /></div>
+          <div className="span-3"><MiniField label="Verifier" value={hasVerification ? "recorded" : "pending/not recorded"} warn={!hasVerification && task.status === "completed"} /></div>
+        </div>
+      </section>
 
       <div className="grid-12">
         <div className="span-8 vstack" style={{ gap: 16 }}>

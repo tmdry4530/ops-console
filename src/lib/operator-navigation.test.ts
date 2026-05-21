@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { operatorNavigationItems, retiredOperatorRoutes } from "./operator-navigation";
 
 describe("operator navigation", () => {
-  it("keeps only the canonical operator surfaces in the sidebar", () => {
-    expect(operatorNavigationItems.map((item) => item.href)).toEqual(["/control", "/projects"]);
+  it("uses four workflow-mode operator surfaces", () => {
+    expect(operatorNavigationItems.map((item) => item.href)).toEqual(["/control", "/projects", "/decisions", "/observe"]);
+    expect(operatorNavigationItems.map((item) => item.mode)).toEqual(["control", "operations", "decision", "observe"]);
   });
 
-  it("records removed standalone routes with Control replacements", () => {
+  it("keeps forbidden CRUD routes retired with workflow replacements", () => {
     expect(retiredOperatorRoutes.map((route) => route.href)).toEqual([
       "/agents",
       "/approvals",
@@ -17,6 +18,15 @@ describe("operator navigation", () => {
       "/settings",
       "/policies"
     ]);
-    expect(retiredOperatorRoutes.every((route) => route.replacement === "/control")).toBe(true);
+    expect(Object.fromEntries(retiredOperatorRoutes.map((route) => [route.href, route.replacement]))).toEqual({
+      "/agents": "/observe/agents",
+      "/approvals": "/decisions",
+      "/events": "/observe",
+      "/artifacts": "/projects",
+      "/dashboard": "/observe",
+      "/reports": "/projects",
+      "/settings": "/control",
+      "/policies": "/control"
+    });
   });
 });

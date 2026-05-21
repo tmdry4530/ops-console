@@ -29,6 +29,18 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     approvals: project.approvals,
     artifacts: project.artifacts
   });
+  const mission = typeof project.metadata === "object" && project.metadata && !Array.isArray(project.metadata) && typeof (project.metadata as Record<string, unknown>).mission === "string"
+    ? String((project.metadata as Record<string, unknown>).mission)
+    : project.revenueType ?? project.nextAction ?? "프로젝트 미션은 task/agent 산출물 기준으로 운영된다.";
+  const parentTasks = project.tasks.filter((task) => /parent|orchestration|hq|delegated|waiting_children/i.test(`${task.title} ${task.summary ?? ""} ${task.nextAction ?? ""} ${task.agent?.slug ?? ""}`));
+  const childTasks = project.tasks.filter((task) => !parentTasks.some((parent) => parent.id === task.id));
+  const roleWork = project.tasks.reduce<Record<string, typeof project.tasks>>((acc, task) => {
+    const key = task.agent?.slug ?? "unassigned";
+    acc[key] = [...(acc[key] ?? []), task];
+    return acc;
+  }, {});
+  const risks = [project.blocker, ...project.approvals.filter((approval) => ["pending", "approved_waiting_execution", "executing", "manual_handoff"].includes(approval.status)).map((approval) => `${approval.riskLevel}: ${approval.title}`)].filter(Boolean);
+  const nextActions = [project.nextAction, ...project.tasks.filter((task) => task.nextAction).slice(0, 5).map((task) => `${task.agent?.name ?? "unassigned"}: ${task.nextAction}`)].filter(Boolean);
 
   return (
     <>
@@ -65,6 +77,25 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       )}
 
       <ProjectWorkspace workspace={workspace} />
+
+      <section className="card project-ops-room" style={{ marginTop: 16 }} aria-label="Project Operations Room">
+        <div className="card-head"><div className="title">프로젝트 작전실</div><div className="sub">· mission / parent-child / role work / decisions / risks / next actions</div></div>
+        <div className="card-body">
+          <div className="grid-12" style={{ gap: 12 }}>
+            <div className="span-6 vstack" style={{ gap: 10 }}>
+              <div className="ops-block"><div className="eyebrow">Mission</div><strong>{mission}</strong></div>
+              <div className="ops-block"><div className="eyebrow">Parent tasks</div>{parentTasks.slice(0, 5).map((task) => <Link key={task.id} href={`/tasks/${task.id}` as Route} className="ops-row"><span>{task.title}</span><StatusBadge label={task.status} /></Link>)}{parentTasks.length === 0 && <span className="muted">delegated parent 없음</span>}</div>
+              <div className="ops-block"><div className="eyebrow">Child tasks</div>{childTasks.slice(0, 8).map((task) => <Link key={task.id} href={`/tasks/${task.id}` as Route} className="ops-row"><span>{task.agent?.name ?? "unassigned"} · {task.title}</span><StatusBadge label={task.status} /></Link>)}{childTasks.length === 0 && <span className="muted">child task 없음</span>}</div>
+            </div>
+            <div className="span-6 vstack" style={{ gap: 10 }}>
+              <div className="ops-block"><div className="eyebrow">Role-agent work</div>{Object.entries(roleWork).slice(0, 7).map(([agentSlug, tasks]) => <div key={agentSlug} className="ops-row"><span>{agentSlug}</span><strong>{tasks.length} tasks</strong></div>)}{Object.keys(roleWork).length === 0 && <span className="muted">할당된 role work 없음</span>}</div>
+              <div className="ops-block"><div className="eyebrow">Decisions</div>{project.approvals.slice(0, 5).map((approval) => <div key={approval.id} className="ops-row"><span>{approval.title}</span><StatusBadge label={approval.status} /></div>)}{project.approvals.length === 0 && <span className="muted">대기 decision 없음</span>}</div>
+              <div className="ops-block"><div className="eyebrow">Risks</div>{risks.slice(0, 5).map((risk, index) => <div key={`${risk}-${index}`} className="ops-row warn"><span>{risk}</span></div>)}{risks.length === 0 && <span className="muted">열린 risk 없음</span>}</div>
+              <div className="ops-block"><div className="eyebrow">Next actions</div>{nextActions.slice(0, 5).map((action, index) => <div key={`${action}-${index}`} className="ops-row"><span>{action}</span></div>)}{nextActions.length === 0 && <span className="muted">다음 액션 없음</span>}</div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid-12" style={{ marginTop: 16 }}>
         <div className="span-8 vstack" style={{ gap: 16 }}>
