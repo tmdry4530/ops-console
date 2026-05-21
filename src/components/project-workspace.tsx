@@ -47,10 +47,12 @@ export function ProjectWorkspace({ workspace }: { workspace: ProjectWorkspacePro
             <div className="card-body">
               <div className="workspace-role-top">
                 <div className={roleRingClass(role.status)}>{role.title.slice(0, 1)}</div>
-                <div style={{ minWidth: 0 }}>
+                <div className="workspace-role-primary">
                   <div className="workspace-role-title">{role.title}</div>
                   <div className="mono muted workspace-role-agent">{role.agentSlug}</div>
                 </div>
+              </div>
+              <div className="workspace-role-status">
                 <StatusBadge label={role.status} />
               </div>
               <div className="workspace-role-hint">{role.capabilityHint}</div>

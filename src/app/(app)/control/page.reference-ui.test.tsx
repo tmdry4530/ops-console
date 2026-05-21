@@ -231,4 +231,16 @@ describe("ControlCenterPage workflow-mode UI", () => {
     expect(screen.queryByText("Approval console")).not.toBeInTheDocument();
     expect(screen.queryByText("hermes-workspace")).not.toBeInTheDocument();
   });
+
+  it("keeps autonomy metrics and agent drawer rows readable instead of crowding labels", async () => {
+    const { container } = render(await ControlCenterPage());
+
+    expect(container.querySelector(".autonomy-metric-grid")).toBeInTheDocument();
+    expect(container.querySelector(".autonomy-level-rail")).toBeInTheDocument();
+
+    const drawerRows = container.querySelectorAll("#agent-drawer .agent-drawer-row");
+    expect(drawerRows.length).toBeGreaterThan(0);
+    expect(container.querySelectorAll("#agent-drawer .agent-drawer-main")).toHaveLength(drawerRows.length);
+    expect(container.querySelectorAll("#agent-drawer .agent-drawer-status")).toHaveLength(drawerRows.length);
+  });
 });

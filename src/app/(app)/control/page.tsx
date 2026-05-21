@@ -67,14 +67,14 @@ export default async function ControlCenterPage() {
           <div className="card control-span-8" id="autonomy">
             <div className="card-head"><div className="title">Autonomy Dashboard</div><div className="sub">· Governor decisions · parent/child state · verifier gate</div><div className="right"><span className="tag">canonical DB</span></div></div>
             <div className="card-body autonomy-dashboard">
-              <div className="control-metrics compact">
-                <div className="control-metric"><span>Decisions</span><strong>{control.autonomyDashboard.decisions24h}</strong><em>latest window</em></div>
-                <div className="control-metric"><span>Auto allowed</span><strong>{control.autonomyDashboard.allowAuto24h}</strong><em>L3/L4 internal</em></div>
-                <div className="control-metric alert"><span>Gated</span><strong>{control.autonomyDashboard.gated24h}</strong><em>approval/manual/block</em></div>
-                <div className="control-metric"><span>Waiting children</span><strong>{control.autonomyDashboard.waitingChildren}</strong><em>delegated parents</em></div>
+              <div className="control-metrics compact autonomy-metric-grid">
+                <div className="control-metric autonomy-metric"><span>Decisions</span><strong>{control.autonomyDashboard.decisions24h}</strong><em>latest window</em></div>
+                <div className="control-metric autonomy-metric"><span>Auto allowed</span><strong>{control.autonomyDashboard.allowAuto24h}</strong><em>L3/L4 internal</em></div>
+                <div className="control-metric autonomy-metric alert"><span>Gated</span><strong>{control.autonomyDashboard.gated24h}</strong><em>approval/manual/block</em></div>
+                <div className="control-metric autonomy-metric"><span>Waiting children</span><strong>{control.autonomyDashboard.waitingChildren}</strong><em>delegated parents</em></div>
               </div>
-              <div className="autonomy-levels">
-                {control.autonomyDashboard.levels.map((level) => <span key={level.level} className="tag">{level.level} · {level.label}</span>)}
+              <div className="autonomy-levels autonomy-level-rail">
+                {control.autonomyDashboard.levels.map((level) => <span key={level.level} className="tag autonomy-level-chip">{level.level} · {level.label}</span>)}
               </div>
             </div>
           </div>
@@ -111,9 +111,9 @@ export default async function ControlCenterPage() {
             <div className="card-head"><div className="title">Agent Control Drawer</div><div className="sub">· compact status + intervention target</div><div className="right"><Link href={"/observe/agents" as never} className="btn ghost sm">agent 관측</Link></div></div>
             <div className="card-body control-approval-list">
               {control.agents.slice(0, 7).map((agent) => (
-                <div key={agent.id} className="approval-row">
-                  <div><strong>{agent.name}</strong><span>{agent.slug} · {agent.currentTask ?? "현재 작업 없음"}</span></div>
-                  <StatusBadge label={labelForStatus(agent.runtimeLabel)} kind={statusKind(agent.runtime)} />
+                <div key={agent.id} className="approval-row agent-drawer-row">
+                  <div className="agent-drawer-main"><strong>{agent.name}</strong><span>{agent.slug} · {agent.currentTask ?? "현재 작업 없음"}</span></div>
+                  <div className="agent-drawer-status"><StatusBadge label={labelForStatus(agent.runtimeLabel)} kind={statusKind(agent.runtime)} /></div>
                 </div>
               ))}
             </div>

@@ -1,3 +1,30 @@
+## Latest ops handoff — 2026-05-21 15:44 KST
+
+Fixed the Project Workspace role-card readability regression shown in the operator screenshot.
+
+Changed:
+
+- `src/components/project-workspace.tsx` — role title/agent now live in `.workspace-role-primary`; status badge moved to `.workspace-role-status` below the title row so badges no longer squeeze labels.
+- `src/app/globals.css` — role grid now uses responsive `auto-fit` card columns instead of a forced 7-column row; card/ring spacing increased; horizontal role-grid scroll removed.
+- `src/components/project-workspace.test.tsx` — regression test for title/status separation.
+
+Runtime/deploy:
+
+- Applied the same patch to `/Users/domclaw/ops-console-runtime`.
+- Rebuilt runtime and restarted `ai.company.ops-console.app` only.
+- No Prisma schema migration and no public bind/routing change.
+
+Verification:
+
+- Source: `pnpm test:unit` passed, `pnpm typecheck` passed, `pnpm lint` passed with existing custom-font warning only, `pnpm prisma:validate` passed, `pnpm docker:config` passed, `pnpm build` passed.
+- Runtime: `pnpm test:unit` passed, `pnpm typecheck` passed, `pnpm prisma:validate` passed, `pnpm docker:config` passed, `pnpm build` passed, `GET http://127.0.0.1:3000/api/health` passed.
+- Runtime lint remains blocked by pre-existing generated backup files under `.next-backup-control-20260520-134821`; source lint is clean except the existing font warning.
+- Playwright live check on `/projects/cmoss0dt5000v2g0j6c9f9dun`: `bodyOverflowX: 0`, `clippedLabels: []`, screenshot `/tmp/project-workspace-fixed.png`.
+
+Safety:
+
+- UI-only change; no secret/token/cookie/browser-storage values inspected or logged.
+
 ## Latest ops handoff — 2026-05-21 12:15 KST
 
 Implemented, verified, and deployed Autonomy Governor + audited Control Center intervention.
@@ -743,3 +770,10 @@ Next recommended work:
   - Visual QA screenshot: `/tmp/control-live-visual-qa.png`.
 - No Prisma migration/schema change.
 - No production public exposure change.
+
+## 2026-05-21 — Control Autonomy/Agent Drawer layout fix
+- Fixed Autonomy Dashboard metric cards and level chips crowding at desktop widths by switching the metric row to responsive `auto-fit` cards and wrapping long level chips.
+- Fixed Agent Control Drawer status badges occupying the middle of rows by splitting each row into `minmax(0, 1fr)` content + fixed status area.
+- Added regression coverage in `src/app/(app)/control/page.reference-ui.test.tsx` for `autonomy-metric-grid`, `autonomy-level-rail`, and `agent-drawer-*` structure.
+- Verified source/runtime unit tests, typecheck, and build. Live `/control` Playwright check: `bodyOverflowX=0`, `clipped=[]`, screenshot `/tmp/control-layout-fixed.png`.
+
