@@ -1,4 +1,5 @@
 import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
 import * as path from "node:path";
 import type { Artifact, Event } from "@prisma/client";
 
@@ -14,18 +15,32 @@ export function hermesExecutionEvents(events: Event[]) {
 
 export function hermesMetadata(events: Event[]): JsonRecord {
   for (const event of events) {
-    if (isRecord(event.metadata) && (event.metadata.stdout || event.metadata.stderr || event.metadata.reportPath || event.metadata.exitCode !== undefined)) {
+    if (isRecord(event.metadata) && (event.metadata.stdout || event.metadata.stderr || event.metadata.reportPath || event.metadata.exitCode !== undefined || event.metadata.executedAt)) {
       return event.metadata;
     }
   }
   return {};
 }
 
+function pathIsInsideRoot(targetPath: string, rootPath: string): boolean {
+  const root = path.resolve(rootPath);
+  const target = path.resolve(targetPath);
+  return target === root || target.startsWith(`${root}${path.sep}`);
+}
+
+export function artifactPreviewPathIsAllowed(targetPath: string): boolean {
+  const allowedRoots = ["/Users/domclaw/dom-company", "/Users/domclaw/ops-console", "/tmp", tmpdir()];
+  return allowedRoots.some((root) => pathIsInsideRoot(targetPath, root));
+}
+
 export async function artifactPreview(artifact: Pick<Artifact, "path" | "restricted">, maxBytes = 12_000): Promise<string | null> {
   if (artifact.restricted || !artifact.path) return null;
-  const resolved = path.resolve(artifact.path);
-  const allowedRoots = ["/Users/domclaw/dom-company", "/Users/domclaw/ops-console", "/tmp"];
-  if (!allowedRoots.some((root) => resolved.startsWith(root))) return "[preview blocked: path outside allowlist]";
+  return readAllowedTextFile(artifact.path, maxBytes);
+}
+
+export async function readAllowedTextFile(targetPath: string, maxBytes = 12_000): Promise<string | null> {
+  const resolved = path.resolve(targetPath);
+  if (!artifactPreviewPathIsAllowed(resolved)) return "[preview blocked: path outside allowlist]";
   const handle = await fs.open(resolved, "r").catch(() => null);
   if (!handle) return null;
   try {
@@ -35,6 +50,35 @@ export async function artifactPreview(artifact: Pick<Artifact, "path" | "restric
   } finally {
     await handle.close();
   }
+}
+
+export type HermesRunSidecars = {
+  runJsonPath: string | null;
+  runJson: JsonRecord | null;
+  stdoutLogPath: string | null;
+  stdoutLog: string | null;
+};
+
+export function hermesRunSidecarPaths(reportPath: string | null | undefined): { runJsonPath: string | null; defaultStdoutLogPath: string | null } {
+  if (!reportPath) return { runJsonPath: null, defaultStdoutLogPath: null };
+  return { runJsonPath: `${reportPath}.run.json`, defaultStdoutLogPath: `${reportPath}.stdout.log` };
+}
+
+export async function hermesRunSidecars(reportPath: string | null | undefined, maxBytes = 8_000): Promise<HermesRunSidecars> {
+  const { runJsonPath, defaultStdoutLogPath } = hermesRunSidecarPaths(reportPath);
+  const runText = runJsonPath ? await readAllowedTextFile(runJsonPath, maxBytes) : null;
+  let runJson: JsonRecord | null = null;
+  if (runText && !runText.startsWith("[preview blocked")) {
+    try {
+      const parsed: unknown = JSON.parse(runText);
+      if (isRecord(parsed)) runJson = parsed;
+    } catch {
+      runJson = { parseError: true, raw: shortLog(runText, 1200) };
+    }
+  }
+  const stdoutLogPath = typeof runJson?.stdout_log_path === "string" ? runJson.stdout_log_path : defaultStdoutLogPath;
+  const stdoutLog = stdoutLogPath ? await readAllowedTextFile(stdoutLogPath, maxBytes) : null;
+  return { runJsonPath, runJson, stdoutLogPath, stdoutLog };
 }
 
 export function shortLog(value: unknown, max = 4000): string {

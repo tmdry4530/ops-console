@@ -11,7 +11,7 @@ describe("HQ orchestration planner", () => {
       "projects-agent",
       "dev-agent",
       "content-agent",
-      "trading-agent",
+      "design-agent",
       "docs-agent"
     ]);
   });
@@ -19,13 +19,21 @@ describe("HQ orchestration planner", () => {
   it("routes code/research instructions to matching agents and docs", () => {
     const plan = planHqOrchestration("SyncSpace 코드 분석하고 구현 개선안 검증해줘", "operator@example.invalid", new Date("2026-05-06T01:00:00Z"));
 
-    expect(plan.runId).toBe("hq-20260506010000");
+    expect(plan.runId).toBe("hq-20260506010000000");
     expect(plan.delegations.map((task) => task.agentSlug)).toEqual(["research-agent", "dev-agent", "docs-agent"]);
     expect(plan.delegations.every((task) => task.status === "queued")).toBe(true);
     expect(plan.discordReports[0].channel).toBe("hq");
-    expect(plan.discordReports.map((report) => report.channel)).toContain("research");
-    expect(plan.discordReports.map((report) => report.channel)).toContain("dev");
-    expect(plan.discordReports.map((report) => report.channel)).toContain("docs");
+    expect(plan.discordReports).toHaveLength(1);
+    expect(plan.discordReports[0].metadata).toMatchObject({
+      stage: "delegation_completed",
+      projectSlug: "ops-console",
+      agentSlug: "hq-agent",
+      workstream: "hq-20260506010000000",
+      threadKey: "ops-console/hq-agent/hq-20260506010000000",
+      threadPolicy: "reuse_project_agent_thread",
+      memoryOwner: "role_profile:hq",
+      childTaskCount: "3"
+    });
   });
 
   it("defaults ambiguous HQ work to research/dev/docs", () => {

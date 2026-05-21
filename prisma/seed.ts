@@ -22,7 +22,8 @@ const companyDepartmentAgents = [
   { slug: "projects-agent", name: "Projects Agent", department: "projects", repoPath: "projects/", focus: "프로젝트 보드, milestone, blocker 관리" },
   { slug: "dev-agent", name: "Dev Agent", department: "dev", repoPath: "dev/", focus: "구현, 자동화, 검증 노트" },
   { slug: "content-agent", name: "Content Agent", department: "content", repoPath: "content/", focus: "operator가 명시 요청한 콘텐츠 문서 작성만 수행" },
-  { slug: "docs-agent", name: "Docs Agent", department: "docs", repoPath: "docs/", focus: "시스템 문서, 로그, 아카이브" }
+  { slug: "docs-agent", name: "Docs Agent", department: "docs", repoPath: "docs/", focus: "시스템 문서, 로그, 아카이브" },
+  { slug: "design-agent", name: "Design Agent", department: "design", repoPath: "design/", focus: "UI/UX, DESIGN.md contract, FE handoff" }
 ];
 
 function safeHashForFile(filePath: string) {

@@ -83,9 +83,17 @@ export async function processCommand(command: QueuedCommandRecord, port: Command
     await port.markCommandRunning(command.id);
     const target = payload.action === "pause"
       ? { status: "blocked" as const, currentTask: "operator paused" }
-      : payload.action === "resume"
+      : payload.action === "resume" || payload.action === "cancel"
         ? { status: "idle" as const, currentTask: null }
-        : { status: "running" as const, currentTask: "operator retry requested" };
+        : payload.action === "scope_limit"
+          ? { status: "blocked" as const, currentTask: "operator scope limited" }
+          : payload.action === "reassign"
+            ? { status: "idle" as const, currentTask: "operator reassign requested" }
+            : payload.action === "reprioritize"
+              ? { status: "idle" as const, currentTask: "operator reprioritize requested" }
+              : payload.action === "rollback"
+                ? { status: "running" as const, currentTask: "operator rollback requested" }
+                : { status: "running" as const, currentTask: "operator retry requested" };
     await db.agent.update({ where: { id: payload.agentId }, data: target });
     const completed = result("completed", "agent_control_state_recorded");
     await port.completeCommand(command.id, completed);

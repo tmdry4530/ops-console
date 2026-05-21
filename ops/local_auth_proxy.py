@@ -1,6 +1,7 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import http.client
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 TARGET_HOST = os.getenv("OPS_CONSOLE_TARGET_HOST", "127.0.0.1")
 TARGET_PORT = int(os.getenv("OPS_CONSOLE_TARGET_PORT", "3000"))
@@ -9,6 +10,30 @@ LISTEN_PORT = int(os.getenv("OPS_CONSOLE_PROXY_PORT", "3010"))
 OPERATOR_EMAIL = os.getenv("OPS_CONSOLE_OPERATOR_EMAIL", "operator@example.invalid")
 _ALLOWED_CLIENTS = os.getenv("OPS_CONSOLE_ALLOWED_CLIENTS", "127.0.0.1,::1")
 ALLOWED_CLIENTS = {ip.strip() for ip in _ALLOWED_CLIENTS.split(",") if ip.strip()}
+
+
+def is_loopback_host(host):
+    name = (host or "").split(":", 1)[0].strip("[]")
+    return name in {"127.0.0.1", "localhost", "::1"}
+
+
+def rewrite_location(value, request_host):
+    if not value:
+        return value
+    parsed = urlsplit(value)
+    target_netloc = f"{TARGET_HOST}:{TARGET_PORT}"
+    listen_netloc = f"127.0.0.1:{LISTEN_PORT}"
+    if parsed.netloc not in {
+        target_netloc,
+        f"127.0.0.1:{TARGET_PORT}",
+        f"localhost:{TARGET_PORT}",
+        listen_netloc,
+        f"localhost:{LISTEN_PORT}",
+    }:
+        return value
+    if is_loopback_host(request_host):
+        return value
+    return urlunsplit(("https", request_host, parsed.path, parsed.query, parsed.fragment))
 
 
 class Proxy(BaseHTTPRequestHandler):
@@ -58,9 +83,13 @@ class Proxy(BaseHTTPRequestHandler):
             resp = conn.getresponse()
             data = resp.read()
             self.send_response(resp.status, resp.reason)
+            request_host = self.headers.get("host") or f"{LISTEN_HOST}:{LISTEN_PORT}"
             for k, v in resp.getheaders():
-                if k.lower() in {"connection", "transfer-encoding", "content-encoding", "content-length"}:
+                lower = k.lower()
+                if lower in {"connection", "transfer-encoding", "content-encoding", "content-length"}:
                     continue
+                if lower == "location":
+                    v = rewrite_location(v, request_host)
                 self.send_header(k, v)
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()

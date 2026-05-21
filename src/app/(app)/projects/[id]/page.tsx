@@ -3,9 +3,11 @@ import type { Route } from "next";
 import Link from "next/link";
 import { ArtifactLink } from "@/components/artifact-link";
 import { EventTimeline } from "@/components/event-timeline";
+import { ProjectWorkspace } from "@/components/project-workspace";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
 import { db } from "@/lib/db";
+import { buildProjectWorkspaceProjection } from "@/lib/project-workspace";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +16,19 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   const project = await db.project.findUnique({
     where: { id },
     include: {
-      approvals: true,
-      artifacts: true,
+      approvals: { orderBy: { updatedAt: "desc" } },
+      artifacts: { include: { agent: true }, orderBy: { updatedAt: "desc" } },
+      tasks: { include: { agent: true }, orderBy: { updatedAt: "desc" } },
       events: { orderBy: { createdAt: "desc" }, take: 20 }
     }
   });
   if (!project) notFound();
+  const workspace = buildProjectWorkspaceProjection({
+    project,
+    tasks: project.tasks,
+    approvals: project.approvals,
+    artifacts: project.artifacts
+  });
 
   return (
     <>
@@ -31,6 +40,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           </div>
           <h1>{project.name}</h1>
           <div className="sub">{project.revenueType ?? project.slug}</div>
+        </div>
+        <div className="actions">
+          <Link href={`/projects/${project.id}/conversations` as Route} className="btn sm">대화 표면</Link>
         </div>
       </div>
 
@@ -52,7 +64,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      <div className="grid-12">
+      <ProjectWorkspace workspace={workspace} />
+
+      <div className="grid-12" style={{ marginTop: 16 }}>
         <div className="span-8 vstack" style={{ gap: 16 }}>
           <div className="card">
             <div className="card-head"><div className="title">Approvals & blockers</div></div>
@@ -71,7 +85,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                     <tr key={a.id}>
                       <td><span className="tag">{a.type}</span></td>
                       <td>
-                        <Link href={`/approvals/${a.id}` as Route} style={{ fontWeight: 500, color: "var(--text-0)" }}>
+                        <Link href="/control#approvals" style={{ fontWeight: 500, color: "var(--text-0)" }}>
                           {a.title}
                         </Link>
                       </td>

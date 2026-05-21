@@ -30,6 +30,12 @@ describe("department adapter v1", () => {
       "agent.adapter.completed",
       "discord.report.queued"
     ]);
+    expect(plan.events.find((event) => event.type === "discord.report.queued")?.metadata).toMatchObject({
+      agentSlug: "docs-agent",
+      threadKey: "ops-console/docs-agent/general",
+      threadPolicy: "reuse_project_agent_thread",
+      memoryOwner: "role_profile:docs"
+    });
   });
 
   it("keeps high-risk adapter work behind Ops Console approval", () => {
@@ -61,25 +67,38 @@ describe("department adapter v1", () => {
     expect(dev.artifact?.content).toContain("Validation Commands");
   });
 
-  it("supports trading alt-candidate scoring as internal signal-only work", () => {
+  it("supports design handoff review as internal no-discord work", () => {
+    const plan = planDepartmentAdapterRun({
+      ...baseTask,
+      id: "task_design",
+      title: "Design · Ops Console UX handoff 점검",
+      summary: "DESIGN.md contract, UI 상태, 접근성, FE handoff 기준으로 화면을 리뷰한다. Discord 직접 보고는 하지 않는다.",
+      agent: { id: "agent_design", slug: "design-agent", name: "Design Agent" }
+    }, new Date("2026-05-08T00:00:00.000Z"));
+
+    expect(plan.kind).toBe("artifact_only_execution");
+    expect(plan.capabilityKey).toBe("design.handoff_review");
+    expect(plan.artifact).toMatchObject({
+      type: "report",
+      path: "artifacts/agents/design-agent/task_design-design.handoff_review.md",
+      restricted: false
+    });
+    expect(plan.artifact?.content).toContain("Design Review Checklist");
+    expect(plan.artifact?.content).toContain("FE handoff");
+    expect(plan.artifact?.content).toContain("Do not deploy");
+    expect(plan.events.map((event) => event.type)).toContain("agent.adapter.completed");
+  });
+
+  it("does not support removed standalone trading worker", () => {
     const plan = planDepartmentAdapterRun({
       ...baseTask,
       id: "task_trading",
       title: "Trading · 오를만한 알트 후보 선별",
-      summary: "거래소 데이터의 가격, 거래량, OI, 펀딩비, 롱숏, BTC 상대강도를 기준으로 알트 후보를 점수화한다. 실거래/주문은 하지 않는다.",
+      summary: "거래소 데이터 점검",
       agent: { id: "agent_trading", slug: "trading-agent", name: "Trading Agent" }
     }, new Date("2026-05-08T00:00:00.000Z"));
 
-    expect(plan.kind).toBe("artifact_only_execution");
-    expect(plan.capabilityKey).toBe("trading.alt_signal_scoring");
-    expect(plan.artifact).toMatchObject({
-      type: "report",
-      path: "artifacts/agents/trading-agent/task_trading-trading.alt_signal_scoring.md",
-      restricted: false
-    });
-    expect(plan.artifact?.content).toContain("OI");
-    expect(plan.artifact?.content).toContain("펀딩비");
-    expect(plan.artifact?.content).toContain("실거래/주문 금지");
-    expect(plan.events.map((event) => event.type)).toContain("agent.adapter.completed");
+    expect(plan.kind).toBe("unsupported_agent");
+    expect(plan.events).toEqual([]);
   });
 });

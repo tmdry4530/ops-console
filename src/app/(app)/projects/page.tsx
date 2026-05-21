@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ProjectBoard } from "@/components/project-board";
 import { db } from "@/lib/db";
 
@@ -10,10 +11,10 @@ export default async function ProjectsPage() {
       <div className="page-head">
         <div className="titles">
           <h1>Projects</h1>
-          <div className="sub">Revenue · bounty · signal · monitoring</div>
+          <div className="sub">프로젝트 등록 · HQ 분배 · 역할 에이전트 Workspace</div>
         </div>
         <div className="actions">
-          <button className="btn ghost sm">+ New project</button>
+          <Link className="btn ghost sm" href="/projects/new">+ New project</Link>
         </div>
       </div>
       <ProjectBoard projects={projects} />

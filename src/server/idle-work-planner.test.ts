@@ -19,13 +19,15 @@ describe("idle company work planner", () => {
       "research-agent",
       "projects-agent",
       "dev-agent",
-      "docs-agent"
+      "docs-agent",
+      "design-agent"
     ]);
     expect(plan?.childTasks.every((task) => task.status === "running" && task.riskLevel === "low")).toBe(true);
     expect(plan?.childTasks.find((task) => task.agentSlug === "main-agent")?.summary).toContain("ops-console/alpha-terminal로만");
     expect(plan?.childTasks.find((task) => task.agentSlug === "main-agent")?.summary).not.toContain("CapyFi");
     expect(plan?.childTasks.find((task) => task.agentSlug === "projects-agent")?.summary).toContain("ops-console/alpha-terminal만");
     expect(plan?.childTasks.some((task) => ["content-agent", "trading-agent"].includes(task.agentSlug))).toBe(false);
+    expect(plan?.childTasks.find((task) => task.agentSlug === "design-agent")?.summary).toContain("DESIGN.md contract");
   });
 
   it("does not create duplicate realtime standing work for the same timestamp", () => {

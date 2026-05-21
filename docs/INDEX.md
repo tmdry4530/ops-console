@@ -9,6 +9,8 @@ This index keeps project documentation discoverable for operators and for the Op
 
 ## Control documents
 
+- `/Users/domclaw/dom-company/docs/hq/ops-console/Local-Agent-Control-Center-2026-05-20.md` — Company-facing implementation report for the `/control` Local Agent Control Center.
+
 - `docs/control/TEST_PLAN.md` — verification checklist and latest test evidence.
 - `docs/control/DECISIONS.md` — architecture and operational decisions.
 - `docs/control/PROGRESS.md` — implementation progress and validation notes.
@@ -18,6 +20,10 @@ This index keeps project documentation discoverable for operators and for the Op
 ## Frontend documents
 
 - `docs/frontend/UI_GUIDE.md` — screen composition, component responsibilities, and frontend/backend connection patterns.
+
+## Feature plans / verifier artifacts
+
+- `artifacts/ops-console/card-news-dashboard/VERIFIER_REPORT.md` — Card News Dashboard final plan, verifier checklist, hq-agent risk boundary, and PASS/BLOCKED criteria.
 
 ## Operational documents
 

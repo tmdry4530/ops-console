@@ -21,7 +21,7 @@ describe("agent capability registry", () => {
     });
   });
 
-  it("defines safe execution contracts for revenue-facing department adapters", () => {
+  it("defines safe execution contracts for revenue-facing and design department adapters", () => {
     expect(capabilitySeedsForAgent("content-agent")).toContainEqual(expect.objectContaining({
       capabilityKey: "content.outreach_approval_pack",
       expectedArtifactType: "report",
@@ -34,6 +34,13 @@ describe("agent capability registry", () => {
       maxRisk: "medium",
       requiresApproval: false
     }));
+    expect(capabilitySeedsForAgent("design-agent")).toContainEqual(expect.objectContaining({
+      capabilityKey: "design.handoff_review",
+      expectedArtifactType: "report",
+      maxRisk: "medium",
+      requiresApproval: false
+    }));
+    expect(capabilitySeedsForAgent("trading-agent")).toEqual([]);
   });
 
   it("selects the narrowest capability for a task instead of broad fan-out", () => {

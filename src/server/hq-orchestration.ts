@@ -1,4 +1,5 @@
 import type { RiskLevel, TaskStatus } from "@prisma/client";
+import { buildConversationMetadata } from "./project-conversations";
 
 type DepartmentAgent = {
   slug: string;
@@ -39,12 +40,12 @@ export const HQ_DEPARTMENT_AGENTS: DepartmentAgent[] = [
   { slug: "projects-agent", name: "Projects Agent", department: "projects", role: "프로젝트 보드/마일스톤/blocker", channel: "projects", keywords: ["프로젝트", "일정", "마일스톤", "milestone", "blocker", "블로커", "보드", "관리"] },
   { slug: "dev-agent", name: "Dev Agent", department: "dev", role: "구현/자동화/검증", channel: "dev", keywords: ["구현", "코드", "개발", "dev", "자동화", "테스트", "검증", "배포", "앱", "콘솔"] },
   { slug: "content-agent", name: "Content Agent", department: "content", role: "카피/랜딩/아웃리치", channel: "content", keywords: ["콘텐츠", "content", "카피", "랜딩", "아웃리치", "메일", "글", "포스트", "홍보"] },
-  { slug: "trading-agent", name: "Trading Agent", department: "trading", role: "Alt signal/OI/funding/liquidity watchlist", channel: "trading", keywords: ["trading", "트레이딩", "alt", "알트", "오를", "추천", "signal", "시그널", "oi", "funding", "펀딩", "펀비", "롱숏", "거래량", "crypto", "코인"] },
+  { slug: "design-agent", name: "Design Agent", department: "design", role: "UI/UX/DESIGN.md/FE handoff", channel: "design", keywords: ["design", "디자인", "ui", "ux", "화면", "와이어", "wireframe", "handoff", "핸드오프", "접근성", "컴포넌트"] },
   { slug: "docs-agent", name: "Docs Agent", department: "docs", role: "문서/로그/최종 보고", channel: "docs", keywords: ["문서", "docs", "가이드", "로그", "보고", "리포트", "정리", "아카이브"] }
 ];
 
 function slugStamp(now: Date) {
-  return now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  return now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 17);
 }
 
 function includesAny(text: string, keywords: string[]) {
@@ -68,7 +69,7 @@ export function selectDepartmentsForInstruction(instruction: string): Department
   return HQ_DEPARTMENT_AGENTS.filter((agent) => ["research-agent", "dev-agent", "docs-agent"].includes(agent.slug));
 }
 
-export function planHqOrchestration(instruction: string, actorEmail: string, now = new Date()): HqOrchestrationPlan {
+export function planHqOrchestration(instruction: string, actorEmail: string, now = new Date(), projectSlug = "ops-console"): HqOrchestrationPlan {
   const trimmed = instruction.trim();
   if (!trimmed) throw new Error("instruction_required");
 
@@ -90,7 +91,8 @@ export function planHqOrchestration(instruction: string, actorEmail: string, now
       parentAgent: "hq-agent",
       department: agent.department,
       discordChannel: agent.channel,
-      requestedBy: actorEmail
+      requestedBy: actorEmail,
+      ...buildConversationMetadata({ projectSlug, agentSlug: agent.slug, workstream: runId })
     }
   }));
 
@@ -105,13 +107,16 @@ export function planHqOrchestration(instruction: string, actorEmail: string, now
     {
       channel: "hq",
       message: startedMessage,
-      metadata: { type: "discord_report", stage: "hq_started", orchestrationRunId: runId, requestedBy: actorEmail }
-    },
-    ...selected.map((agent) => ({
-      channel: agent.channel,
-      message: [`상태: HQ 하위작업 배정`, `역할: ${agent.role}`, `작업: ${trimmed}`, "다음액션: 담당 산출물/진행상황을 Ops Console 이벤트로 기록"].join("\n"),
-      metadata: { type: "discord_report", stage: "delegated", orchestrationRunId: runId, department: agent.department, requestedBy: actorEmail }
-    }))
+      metadata: {
+        type: "discord_report",
+        stage: "delegation_completed",
+        orchestrationRunId: runId,
+        requestedBy: actorEmail,
+        childTaskCount: String(selected.length),
+        departments: selected.map((agent) => agent.department).join(","),
+        ...buildConversationMetadata({ projectSlug, agentSlug: "hq-agent", workstream: runId })
+      }
+    }
   ];
 
   return { runId, parentSummary, delegations, discordReports };

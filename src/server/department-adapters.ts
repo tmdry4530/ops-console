@@ -1,6 +1,7 @@
 import type { ArtifactType, EventSeverity, RiskLevel } from "@prisma/client";
 import { contentHash } from "./ingest/hash";
 import { selectCapabilityForTask } from "./agent-capabilities";
+import { buildConversationMetadata } from "./project-conversations";
 
 export type DepartmentAdapterTask = {
   id: string;
@@ -8,6 +9,7 @@ export type DepartmentAdapterTask = {
   summary: string | null;
   riskLevel: RiskLevel;
   projectId?: string | null;
+  projectSlug?: string | null;
   agent: {
     id: string;
     slug: string;
@@ -84,8 +86,8 @@ function outputForCapability(capabilityKey: string, task: DepartmentAdapterTask,
     return `${header}\n## Pipeline Operations Checklist\n\n- Review stage, reply_status, owner, and next_action for each prospect.\n- Separate internal cleanup from external/manual outreach.\n- Flag stale A-group items and identify B-group preparation needs.\n- Keep CSV writes as a proposal unless explicitly approved.\n\n## Proposed Next Action\n\nProduce a pipeline status artifact with blockers, owner, and next manual gate.\n`;
   }
 
-  if (capabilityKey === "trading.alt_signal_scoring") {
-    return `${header}\n## Alt Signal Scoring Checklist\n\n- Universe: USDT perpetual alts only; exclude BTC/ETH, extreme illiquidity, delist/watch tokens, memecoin-only narratives unless operator explicitly allows.\n- Data: price/volume, 24h change, OI 5m/15m/1h change, funding rate, premium basis, top long/short account ratio, BTC/ETH relative strength, recent liquidation/volatility context when available.\n- Bullish setup: price up or base breakout + OI rising + volume expansion + funding neutral/slightly negative + long/short not overheated + BTC regime supportive.\n- Avoid: funding overheated positive, price down with OI up, thin volume, single-exchange anomaly, crowded long ratio, news-only pump.\n- Score output: 0-100 with subscores for trend, OI, funding, volume/liquidity, relative strength, crowding penalty, risk penalty.\n- 실거래/주문 금지: produce watchlist/recommendation research only. Entries, leverage, orders, or portfolio sizing require explicit Ops Console approval.\n\n## Proposed Output\n\n- Top 3 long-watch candidates with why-now evidence.\n- Invalidations and risk flags for each candidate.\n- Data timestamp and source endpoints.\n`;
+  if (capabilityKey === "design.handoff_review") {
+    return `${header}\n## Design Review Checklist\n\n- Check DESIGN.md contract, semantic tokens, layout, components, states, and accessibility requirements.\n- Produce FE handoff notes with screen flow, component specs, responsive states, and open questions.\n- Do not deploy, edit production UI, or send Discord reports directly; return artifacts to Ops Console/company router.\n\n## Proposed Output\n\n- UX findings ranked by severity.\n- FE handoff notes and acceptance criteria.\n- Missing design tokens or accessibility gaps.\n`;
   }
 
   return `${header}\n## Triage Checklist\n\n- Extract owner, blocker, and next action.\n- Flag stale running tasks.\n- Create follow-up tasks only when ownership is clear.\n`;
@@ -98,13 +100,18 @@ export function planDepartmentAdapterRun(task: DepartmentAdapterTask, now = new 
   if (!capability) return { kind: "unsupported_agent", events: [] };
 
   const executedAt = timestamp(now);
+  const conversationMetadata = buildConversationMetadata({
+    projectSlug: task.projectSlug ?? "ops-console",
+    agentSlug: task.agent.slug,
+    workstream: "general"
+  });
   const baseMetadata = {
     taskId: task.id,
-    agentSlug: task.agent.slug,
     capabilityKey: capability.capabilityKey,
     riskLevel: task.riskLevel,
     executedAt,
-    mode: "department_adapter_v1"
+    mode: "department_adapter_v1",
+    ...conversationMetadata
   };
 
   if (!safeRisk(task.riskLevel)) {

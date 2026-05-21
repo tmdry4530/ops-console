@@ -71,14 +71,15 @@ describe("planAutonomousTaskRun", () => {
     expect(plan.taskStatus).toBe("waiting_approval");
     expect(plan.approval).toMatchObject({
       type: "revenue_outreach",
-      status: "pending",
+      status: "manual_handoff",
       riskLevel: "medium",
-      requestedBy: "autonomous-agent-worker"
+      requestedBy: "autonomy-governor"
     });
     expect(plan.events.map((event) => event.type)).toEqual([
-      "agent.autonomy.approval_requested",
+      "autonomy.governor.decision",
       "discord.report.queued"
     ]);
+    expect(plan.events[0]?.metadata).toMatchObject({ decision: "require_manual_handoff" });
   });
 
   it("routes high-risk autonomous work to the Ops Console approval inbox", () => {
@@ -90,14 +91,15 @@ describe("planAutonomousTaskRun", () => {
     expect(plan.approval).toMatchObject({
       status: "pending",
       riskLevel: "high",
-      requestedBy: "autonomous-agent-worker"
+      requestedBy: "autonomy-governor"
     });
     expect(plan.events.map((event) => event.type)).toEqual([
-      "agent.autonomy.approval_requested",
+      "autonomy.governor.decision",
       "discord.report.queued"
     ]);
+    expect(plan.events[0]?.metadata).toMatchObject({ decision: "require_approval" });
     expect(plan.events.find((event) => event.type === "discord.report.queued")?.metadata).toMatchObject({
-      purpose: "status_report",
+      purpose: "approval_needed",
       approvalRequest: false,
       consoleApprovalId: "pending"
     });

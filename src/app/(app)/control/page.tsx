@@ -1,9 +1,9 @@
-import type { Route } from "next";
 import Link from "next/link";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { ApprovalActions } from "@/components/approval-actions";
 import { RiskBadge } from "@/components/risk-badge";
 import { StatusBadge } from "@/components/status-badge";
+import { LiveInterventionPanel } from "@/components/live-intervention-panel";
 import { formatDateTimeKo, formatTimeKo, labelForHealth, labelForRisk, labelForStatus } from "@/lib/korean-labels";
 import { getControlCenterSummary } from "@/server/control-center";
 
@@ -51,8 +51,8 @@ export default async function ControlCenterPage() {
           </div>
           <div className="control-hero-actions">
             <div className="live-pill"><span /> Live · {formatTimeKo(control.generatedAt)}</div>
-            <Link href="/approvals" className="btn warn sm">승인 콘솔</Link>
-            <Link href="/events" className="btn ghost sm">이벤트 원장</Link>
+            <a href="#approvals" className="btn warn sm">승인 콘솔</a>
+            <a href="#events" className="btn ghost sm">이벤트 원장</a>
           </div>
         </section>
 
@@ -63,7 +63,7 @@ export default async function ControlCenterPage() {
               <strong>{control.highRiskApprovals[0].title}</strong>
               <p>{control.highRiskApprovals[0].summary}</p>
             </div>
-            <Link href={`/approvals/${control.highRiskApprovals[0].id}` as Route} className="btn danger">강한 확인 필요</Link>
+            <a href="#approvals" className="btn danger">강한 확인 필요</a>
           </section>
         )}
 
@@ -87,6 +87,59 @@ export default async function ControlCenterPage() {
           <div className="control-metric"><span>Incidents</span><strong>{control.summary.incidents}</strong><em>cron/auth/worker watched</em></div>
           <div className="control-metric"><span>Cost/token</span><strong>{money(control.summary.totalCostToday)}</strong><em>avg latency {control.summary.averageLatencyMs}ms</em></div>
           <div className="control-metric"><span>Artifacts</span><strong>{control.summary.artifacts}</strong><em>restricted {control.summary.restrictedArtifacts}</em></div>
+        </section>
+
+        <section className="control-grid" aria-label="Autonomy Governor">
+          <div className="card control-span-8" id="autonomy">
+            <div className="card-head"><div className="title">Autonomy Dashboard</div><div className="sub">· Governor decisions · parent/child state · verifier gate</div><div className="right"><span className="tag">canonical DB</span></div></div>
+            <div className="card-body autonomy-dashboard">
+              <div className="control-metrics compact">
+                <div className="control-metric"><span>Decisions</span><strong>{control.autonomyDashboard.decisions24h}</strong><em>latest window</em></div>
+                <div className="control-metric"><span>Auto allowed</span><strong>{control.autonomyDashboard.allowAuto24h}</strong><em>L3/L4 internal</em></div>
+                <div className="control-metric alert"><span>Gated</span><strong>{control.autonomyDashboard.gated24h}</strong><em>approval/manual/block</em></div>
+                <div className="control-metric"><span>Waiting children</span><strong>{control.autonomyDashboard.waitingChildren}</strong><em>delegated parents</em></div>
+                <div className="control-metric alert"><span>Human decisions</span><strong>{control.autonomyDashboard.pendingHumanDecisions}</strong><em>pending/manual</em></div>
+                <div className="control-metric"><span>Interventions</span><strong>{control.autonomyDashboard.openInterventions}</strong><em>queued/running</em></div>
+              </div>
+              <div className="autonomy-levels">
+                {control.autonomyDashboard.levels.map((level) => <span key={level.level} className="tag">{level.level} · {level.label}</span>)}
+              </div>
+            </div>
+          </div>
+
+          <div className="card control-span-4" id="intervention">
+            <div className="card-head"><div className="title">Live Intervention Panel</div><div className="sub">· pause/resume/cancel/reassign/scope-limit</div></div>
+            <div className="card-body">
+              <LiveInterventionPanel agents={control.agents.map((agent) => ({ id: agent.id, name: agent.name, slug: agent.slug, status: agent.status, currentTask: agent.currentTask }))} />
+            </div>
+          </div>
+
+          <div className="card control-span-7" id="policy-matrix">
+            <div className="card-head"><div className="title">Autonomy Policy Matrix</div><div className="sub">· default policy + DB decisions</div></div>
+            <div className="card-body flush control-table-wrap">
+              <table className="tbl control-table">
+                <thead><tr><th>Scope</th><th>Agent</th><th>Level</th><th>Decision</th><th>Rule</th></tr></thead>
+                <tbody>
+                  {control.autonomyDashboard.policyMatrix.map((row) => (
+                    <tr key={`${row.scope}-${row.agent}`}><td>{row.scope}</td><td>{row.agent}</td><td>{row.autonomyLevel}</td><td><StatusBadge label={row.decision} kind={row.decision === "block" ? "danger" : row.decision.includes("approval") ? "warn" : "ok"} /></td><td className="truncate-cell">{row.rule}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card control-span-5" id="human-decisions">
+            <div className="card-head"><div className="title">Pending Human Decisions</div><div className="sub">· Discord approval 금지 · Ops Console only</div></div>
+            <div className="card-body control-approval-list">
+              {control.pendingHumanDecisions.slice(0, 6).map((approval) => (
+                <div key={approval.id} className={`approval-row risk-${approval.riskLevel}`}>
+                  <div><RiskBadge risk={approval.riskLevel} /> <strong>{approval.title}</strong><span>{approval.scope} · {approval.traceId.slice(0, 10)}</span></div>
+                  <StatusBadge label={labelForStatus(approval.status)} kind={statusKind(approval.status)} />
+                </div>
+              ))}
+              {control.pendingHumanDecisions.length === 0 && <div className="empty">대기 중인 사용자 결정 없음</div>}
+            </div>
+          </div>
         </section>
 
         <section className="card" aria-label="Company-native system monitor">
@@ -129,7 +182,7 @@ export default async function ControlCenterPage() {
           <div className="control-session-list" id="sessions">
             <div className="card-head"><div className="title">Session / Run Timeline</div><div className="sub">· central Kiro-style run list</div></div>
             {topTasks.slice(0, 5).map((task) => (
-              <Link key={task.id} href={`/tasks/${task.id}` as Route} className="session-row">
+              <Link key={task.id} href={`/tasks/${task.id}` as never} className="session-row">
                 <span className={`session-dot ${task.status}`} />
                 <div><strong>{task.title}</strong><em>{task.agentName} · {task.projectName} · {task.traceId.slice(0, 10)}</em></div>
                 <StatusBadge label={labelForStatus(task.status)} kind={statusKind(task.status)} />
@@ -166,7 +219,7 @@ export default async function ControlCenterPage() {
                 <tbody>
                   {control.agents.map((agent) => (
                     <tr key={agent.id} className={agent.expectedStopped ? "is-neutral" : ""}>
-                      <td><Link href={`/agents/${agent.id}` as Route} className="strong-link">{agent.name}</Link><div className="mono tiny">{agent.slug}</div></td>
+                      <td><a href="#agents" className="strong-link">{agent.name}</a><div className="mono tiny">{agent.slug}</div></td>
                       <td><StatusBadge label={agent.scope} kind={agent.scope === "Company" ? "ok" : "muted"} /></td>
                       <td><StatusBadge label={agent.expectedStopped ? "정상 중지" : labelForStatus(agent.runtimeLabel)} kind={statusKind(agent.runtime)} /></td>
                       <td className="truncate-cell">{agent.currentTask ?? "현재 작업 없음"}</td>
@@ -204,7 +257,7 @@ export default async function ControlCenterPage() {
                 <tbody>
                   {topTasks.map((task) => (
                     <tr key={task.id}>
-                      <td><Link href={`/tasks/${task.id}` as Route} className="strong-link">{task.title}</Link><div className="tiny">{task.projectName}</div></td>
+                      <td><Link href={`/tasks/${task.id}` as never} className="strong-link">{task.title}</Link><div className="tiny">{task.projectName}</div></td>
                       <td><StatusBadge label={labelForStatus(task.status)} kind={statusKind(task.status)} /></td>
                       <td>{task.agentName}</td>
                       <td><RiskBadge risk={task.riskLevel} /></td>
@@ -219,15 +272,15 @@ export default async function ControlCenterPage() {
           </div>
 
           <div className="card control-span-5" id="approvals">
-            <div className="card-head"><div className="title">Approval console</div><div className="sub">· high-risk pinned</div><div className="right"><Link href="/approvals" className="btn ghost sm">전체</Link></div></div>
+            <div className="card-head"><div className="title">Approval console</div><div className="sub">· high-risk pinned</div><div className="right"><a href="#approvals" className="btn ghost sm">전체</a></div></div>
             <div className="card-body control-approval-list">
               {control.approvals.slice(0, 8).map((approval) => (
                 <div key={approval.id} className={`approval-row action-row risk-${approval.riskLevel}`}>
-                  <Link href={`/approvals/${approval.id}` as Route} className="approval-main-link">
+                  <div className="approval-main-link">
                     <RiskBadge risk={approval.riskLevel} />
                     <div><strong>{approval.title}</strong><span>{approval.scope} · secret check: {approval.secretExposureCheck}</span></div>
                     <StatusBadge label={labelForStatus(approval.status)} kind={statusKind(approval.status)} />
-                  </Link>
+                  </div>
                   {approval.status === "pending" && (
                     <ApprovalActions approvalId={approval.id} status={approval.status} manualReportId={null} variant="compact" riskLevel={approval.riskLevel} />
                   )}

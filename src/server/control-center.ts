@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { Agent, Approval, Artifact, Event, RiskLevel, Task } from "@prisma/client";
 import { buildLocalSystemMonitor } from "./local-system-monitor";
 import { getCompanyOpsMonitor, summarizeAgentOps } from "./ops-monitor";
+import { AUTONOMY_LEVELS, DEFAULT_POLICY_MATRIX } from "./autonomy-governor";
 
 const ACTIVE_TASK_STATUSES = ["queued", "running", "waiting_approval", "needs_changes"] as const;
 const OPEN_APPROVAL_STATUSES = ["pending", "approved_waiting_execution", "executing", "needs_changes", "manual_handoff"] as const;
@@ -46,7 +47,17 @@ function safeMetadata(value: unknown): SafeRecord {
     "healthUrl",
     "parentTaskId",
     "childTaskId",
-    "targetStatus"
+    "targetStatus",
+    "decision",
+    "autonomyLevel",
+    "verifierRequired",
+    "orchestrationState",
+    "childTaskCount",
+    "aggregationTaskSlug",
+    "stage",
+    "action",
+    "targetAgentId",
+    "scopeLimit"
   ];
   return Object.fromEntries(
     allowlist
@@ -218,6 +229,34 @@ export async function getControlCenterSummary(now = new Date()) {
     }));
 
   const highRiskApprovals = approvalRows.filter((approval) => approval.riskLevel === "high" || approval.riskLevel === "critical");
+  const autonomyDecisionEvents = eventRows.filter((event) => event.type === "autonomy.governor.decision");
+  const waitingChildren = taskRows.filter((task) => task.status === "running" && /waiting_children|delegated/i.test(`${task.nextAction ?? ""} ${task.summary ?? ""}`));
+  const pendingHumanDecisions = approvalRows.filter((approval) => ["pending", "manual_handoff", "needs_changes"].includes(approval.status));
+  const commandRows = commands.map((command) => {
+    const payload = isRecord(command.payload) ? command.payload : {};
+    return {
+      id: command.id,
+      actionType: command.actionType,
+      status: command.status,
+      riskLevel: command.riskLevel,
+      approvalTitle: command.approval?.title ?? null,
+      targetAgentId: typeof payload.agentId === "string" ? payload.agentId : typeof payload.targetAgentId === "string" ? payload.targetAgentId : null,
+      action: typeof payload.action === "string" ? payload.action : command.actionType,
+      scopeLimit: typeof payload.scopeLimit === "string" ? payload.scopeLimit : null,
+      updatedAt: command.updatedAt,
+      createdAt: command.createdAt
+    };
+  });
+  const autonomyDashboard = {
+    levels: AUTONOMY_LEVELS,
+    policyMatrix: DEFAULT_POLICY_MATRIX,
+    decisions24h: autonomyDecisionEvents.length,
+    allowAuto24h: autonomyDecisionEvents.filter((event) => event.metadata.decision === "allow_auto").length,
+    gated24h: autonomyDecisionEvents.filter((event) => ["require_approval", "require_manual_handoff", "block", "pause_scope"].includes(String(event.metadata.decision))).length,
+    waitingChildren: waitingChildren.length,
+    pendingHumanDecisions: pendingHumanDecisions.length,
+    openInterventions: commandRows.filter((command) => ["queued", "waiting_manual_handoff", "running"].includes(command.status)).length
+  };
   const criticalEvents = eventRows.filter((event) => event.severity === "critical");
   const failedTasks = taskRows.filter((task) => task.status === "failed");
   const incidents = [
@@ -293,6 +332,9 @@ export async function getControlCenterSummary(now = new Date()) {
     monitorTotals: monitor.totals,
     localSystems,
     agents,
+    autonomyDashboard,
+    pendingHumanDecisions,
+    commands: commandRows,
     tasks: taskRows,
     approvals: approvalRows,
     highRiskApprovals,

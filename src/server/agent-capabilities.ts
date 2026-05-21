@@ -119,20 +119,20 @@ export const AGENT_CAPABILITY_SEEDS: AgentCapabilitySeed[] = [
     keywords: ["projects", "pipeline", "파이프라인", "운영표", "next_action", "reply_status", "파일럿", "prospect", "후보"]
   },
   {
-    agentSlug: "trading-agent",
-    capabilityKey: "trading.alt_signal_scoring",
+    agentSlug: "design-agent",
+    capabilityKey: "design.handoff_review",
     inputSchema: baseInputSchema,
     outputSchema: artifactOutputSchema,
-    allowedTools: ["exchange_public_data", "repo_read", "artifact_write"],
+    allowedTools: ["repo_read", "design_review", "artifact_write", "handoff_spec"],
     maxRisk: "medium",
     expectedArtifactType: "report",
-    successCriteria: ["artifact_created", "oi_funding_volume_score_included", "no_live_order_or_investment_claim"],
-    failureModes: ["exchange_data_unavailable", "low_liquidity_universe", "single_factor_signal", "secret_like_content"],
-    rollbackOrManualHandoff: "Signal/recommendation research only; live orders, leverage, wallet actions, or financial commitments require explicit operator approval.",
+    successCriteria: ["artifact_created", "design_contract_checked", "fe_handoff_notes_included", "no_external_report"],
+    failureModes: ["missing_screen_context", "ambiguous_flow", "accessibility_gap", "secret_like_content"],
+    rollbackOrManualHandoff: "Produce UI/UX review and FE handoff notes only; deployment, production edits, or external reporting require operator approval.",
     requiresApproval: false,
     avgCost: 0,
     avgDuration: 45,
-    keywords: ["trading", "트레이딩", "alt", "알트", "오를", "추천", "signal", "시그널", "oi", "open interest", "funding", "펀딩", "펀비", "long short", "롱숏", "거래량", "상대강도", "crypto", "코인"]
+    keywords: ["design", "디자인", "ui", "ux", "wireframe", "와이어", "handoff", "핸드오프", "화면", "접근성", "DESIGN.md", "visual", "컴포넌트"]
   },
   {
     agentSlug: "main-agent",

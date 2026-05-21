@@ -11,33 +11,41 @@ const baseInput: AgentInstructionInput = {
 };
 
 describe("planAgentInstruction", () => {
-  it("creates a pending approval plan for low-risk operator instructions", () => {
+  it("queues low-risk operator instructions without a second approval gate", () => {
     const plan = planAgentInstruction(baseInput, "operator@example.invalid");
 
-    expect(plan.task.status).toBe("waiting_approval");
+    expect(plan.task.status).toBe("queued");
     expect(plan.task.slug).toMatch(/^ops-crypto-signal-/);
-    expect(plan.approval.status).toBe("pending");
-    expect(plan.approval.type).toBe("other");
-    expect(plan.approval.riskLevel).toBe("low");
-    expect(plan.approval.summary).toContain("뉴스 소스 품질 점검");
+    expect(plan.approval).toBeNull();
+    expect(plan.task.nextAction).toContain("승인 없이");
     expect(plan.event.message).toContain("Operator instruction requested");
+    expect(plan.event.metadata).toMatchObject({
+      projectSlug: "ops-console",
+      agentSlug: "main-agent",
+      workstream: "operator-instructions",
+      threadKey: "ops-console/main-agent/operator-instructions",
+      threadPolicy: "reuse_project_agent_thread",
+      memoryOwner: "role_profile:main"
+    });
   });
 
   it("maps deployment instructions to deploy approvals", () => {
     const plan = planAgentInstruction({ ...baseInput, actionType: "deploy", riskLevel: "medium" }, "operator@example.invalid");
 
-    expect(plan.approval.type).toBe("deploy");
-    expect(plan.approval.riskLevel).toBe("medium");
+    expect(plan.task.status).toBe("waiting_approval");
+    expect(plan.approval?.status).toBe("pending");
+    expect(plan.approval?.type).toBe("deploy");
+    expect(plan.approval?.riskLevel).toBe("medium");
   });
 
   it("forces wallet and high-risk instructions into visible approval gates", () => {
     const walletPlan = planAgentInstruction({ ...baseInput, actionType: "wallet_kyc", riskLevel: "medium" }, "operator@example.invalid");
     const highRiskPlan = planAgentInstruction({ ...baseInput, actionType: "operator_instruction", riskLevel: "high" }, "operator@example.invalid");
 
-    expect(walletPlan.approval.type).toBe("wallet_kyc");
-    expect(walletPlan.approval.status).toBe("pending");
-    expect(highRiskPlan.approval.riskLevel).toBe("high");
-    expect(highRiskPlan.approval.status).toBe("pending");
+    expect(walletPlan.approval?.type).toBe("wallet_kyc");
+    expect(walletPlan.approval?.status).toBe("pending");
+    expect(highRiskPlan.approval?.riskLevel).toBe("high");
+    expect(highRiskPlan.approval?.status).toBe("pending");
   });
 
   it("rejects blank instructions", () => {

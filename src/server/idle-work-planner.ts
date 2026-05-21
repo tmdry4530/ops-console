@@ -58,6 +58,12 @@ const STANDING_DEPARTMENTS: StandingDepartment[] = [
     department: "docs",
     title: "Docs · 운영 로그/결정사항 정리",
     summary: "ops-console/alpha-terminal 범위의 산출물, 의사결정, 다음 액션만 dom-company식 운영 지식으로 정리한다. Auth/Crypto Signal은 별도 시스템으로 기록한다."
+  },
+  {
+    agentSlug: "design-agent",
+    department: "design",
+    title: "Design · ops-console/alpha-terminal UX handoff 점검",
+    summary: "ops-console/alpha-terminal 화면·흐름·DESIGN.md contract·FE handoff 기준만 점검한다. 실제 배포나 외부 보고는 하지 않는다."
   }
 ];
 

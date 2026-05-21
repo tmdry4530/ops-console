@@ -1,0 +1,68 @@
+import type { AgentStatus, TaskStatus } from "@prisma/client";
+
+function slugStamp(now: Date) {
+  return now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 17);
+}
+
+export function parentDelegationStateAfterDispatch(childTaskCount: number, isoTimestamp: string): {
+  parentTask: { status: TaskStatus; blocker: null; nextAction: string };
+  parentEventMetadata: { orchestrationState: "waiting_children"; childTaskCount: number; delegatedAt: string };
+  mainAgent: { status: AgentStatus; currentTask: null };
+} {
+  return {
+    parentTask: {
+      status: "running",
+      blocker: null,
+      nextAction: `delegated/waiting_children · ${childTaskCount} child tasks dispatched at ${isoTimestamp}`
+    },
+    parentEventMetadata: { orchestrationState: "waiting_children", childTaskCount, delegatedAt: isoTimestamp },
+    mainAgent: { status: "idle", currentTask: null }
+  };
+}
+
+export function isTerminalTaskStatus(status: TaskStatus) {
+  return status === "completed" || status === "failed";
+}
+
+export function planAggregationAfterChildTerminals(input: { parentTaskId: string; childStatuses: TaskStatus[]; now: Date }): {
+  shouldCreateAggregation: boolean;
+  aggregationTask?: {
+    slugSuffix: string;
+    title: string;
+    status: TaskStatus;
+    riskLevel: "low";
+    summary: string;
+    nextAction: string;
+  };
+  parentTask?: { status: TaskStatus; nextAction: string; blocker: null };
+  mainAgent?: { status: AgentStatus; currentTask: string };
+  eventMetadata?: { orchestrationState: "aggregation_running"; parentTaskId: string; childTaskCount: number; aggregationStartedAt: string };
+} {
+  if (input.childStatuses.length === 0 || !input.childStatuses.every(isTerminalTaskStatus)) {
+    return { shouldCreateAggregation: false };
+  }
+
+  return {
+    shouldCreateAggregation: true,
+    aggregationTask: {
+      slugSuffix: `aggregation-${slugStamp(input.now)}`,
+      title: "HQ aggregation · child task terminal review",
+      status: "running",
+      riskLevel: "low",
+      summary: `Aggregate child terminal outputs for parent task ${input.parentTaskId}`,
+      nextAction: "main-agent aggregation running · child terminal summaries/verifier evidence required"
+    },
+    parentTask: {
+      status: "running",
+      blocker: null,
+      nextAction: `aggregation_running · child tasks terminal at ${input.now.toISOString()}`
+    },
+    mainAgent: { status: "running", currentTask: "HQ aggregation/review" },
+    eventMetadata: {
+      orchestrationState: "aggregation_running",
+      parentTaskId: input.parentTaskId,
+      childTaskCount: input.childStatuses.length,
+      aggregationStartedAt: input.now.toISOString()
+    }
+  };
+}

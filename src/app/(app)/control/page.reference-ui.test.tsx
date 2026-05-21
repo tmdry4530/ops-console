@@ -140,6 +140,18 @@ const mockSummary = {
     }
   ],
   approvals: [],
+  autonomyDashboard: {
+    levels: [{ level: "L4", label: "Auto-Execute Medium Internal" }],
+    policyMatrix: [{ scope: "docs/research/projects", agent: "docs-agent", autonomyLevel: "L4", decision: "allow_auto", rule: "low/medium internal" }],
+    decisions24h: 2,
+    allowAuto24h: 1,
+    gated24h: 1,
+    waitingChildren: 0,
+    pendingHumanDecisions: 0,
+    openInterventions: 0
+  },
+  pendingHumanDecisions: [],
+  commands: [],
   highRiskApprovals: [],
   events: [
     {
@@ -213,6 +225,10 @@ describe("ControlCenterPage reference-driven UI", () => {
     expect(screen.getByText("OpenSea-style dense grid")).toBeInTheDocument();
     expect(screen.getByText("Company-native Monitor / Manage")).toBeInTheDocument();
     expect(screen.getByText("Hermes Workspace retired")).toBeInTheDocument();
+    expect(screen.getByText("Autonomy Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Live Intervention Panel")).toBeInTheDocument();
+    expect(screen.getByText("Autonomy Policy Matrix")).toBeInTheDocument();
+    expect(screen.getByText("Pending Human Decisions")).toBeInTheDocument();
     expect(screen.queryByText("hermes-workspace")).not.toBeInTheDocument();
   });
 });

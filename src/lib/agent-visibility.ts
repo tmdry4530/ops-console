@@ -17,7 +17,7 @@ const COMPANY_AGENT_ORDER = new Map([
   ["projects-agent", 40],
   ["dev-agent", 50],
   ["content-agent", 60],
-  ["trading-agent", 70],
+  ["design-agent", 70],
   ["docs-agent", 80],
   ["trading-bounty", 90],
   ["crypto-signal", 100],

@@ -12,6 +12,11 @@ if [ -f .env ]; then
 fi
 
 while true; do
+  if [ "${OPS_CONSOLE_REPORT_WORKER_ENABLED:-false}" != "true" ]; then
+    echo "report worker disabled: OPS_CONSOLE_REPORT_WORKER_ENABLED=${OPS_CONSOLE_REPORT_WORKER_ENABLED:-false}"
+    sleep "${OPS_CONSOLE_REPORT_WORKER_DISABLED_SLEEP_SEC:-300}"
+    continue
+  fi
   pnpm worker:reports
   sleep "${OPS_CONSOLE_REPORT_WORKER_INTERVAL_SEC:-20}"
 done

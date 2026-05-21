@@ -1,6 +1,6 @@
 import type { RiskLevel } from "@prisma/client";
 
-export type AgentControlAction = "pause" | "resume" | "retry" | "restart" | "kill";
+export type AgentControlAction = "pause" | "resume" | "retry" | "cancel" | "reprioritize" | "rollback" | "reassign" | "scope_limit" | "restart" | "kill";
 
 export type AgentControlTarget = { id: string; name: string; slug: string };
 
@@ -14,7 +14,20 @@ export type AgentControlPlan = {
   eventType: "agent.control.requested";
 };
 
-const HIGH_RISK_ACTIONS = new Set<AgentControlAction>(["restart", "kill"]);
+const SAFE_ACTIONS = new Set<AgentControlAction>(["pause", "resume", "retry", "cancel", "reprioritize", "reassign", "scope_limit"]);
+const HIGH_RISK_ACTIONS = new Set<AgentControlAction>(["rollback", "restart", "kill"]);
+
+export function normalizeAgentControlAction(action: string): AgentControlAction | null {
+  const normalized = action.trim().toLowerCase().replace(/-/g, "_");
+  if (SAFE_ACTIONS.has(normalized as AgentControlAction) || HIGH_RISK_ACTIONS.has(normalized as AgentControlAction)) {
+    return normalized as AgentControlAction;
+  }
+  return null;
+}
+
+export function isAgentControlAction(action: string): boolean {
+  return normalizeAgentControlAction(action) !== null;
+}
 
 export function buildAgentControlPlan(action: AgentControlAction, agent: AgentControlTarget): AgentControlPlan {
   const highRisk = HIGH_RISK_ACTIONS.has(action);
@@ -22,12 +35,12 @@ export function buildAgentControlPlan(action: AgentControlAction, agent: AgentCo
     action,
     status: highRisk ? "approval_required" : "queued",
     riskLevel: highRisk ? "high" : "medium",
-    commandActionType: `agent_${action}`,
+    commandActionType: `agent_control_${action}`,
     approvalTitle: `에이전트 제어 승인 필요 · ${agent.name}`,
     approvalSummary: [
       `대상: ${agent.name} (${agent.slug})`,
       `요청 액션: ${action}`,
-      highRisk ? "실제 프로세스 restart/kill은 운영 영향이 있으므로 승인 후 실행해야 합니다." : "안전한 내부 제어 요청으로 command queue에 기록합니다."
+      highRisk ? "rollback/restart/kill은 운영 영향이 있으므로 승인 후 실행해야 합니다." : "안전한 내부 제어 요청으로 command queue에 기록합니다."
     ].join("\n"),
     eventType: "agent.control.requested"
   };

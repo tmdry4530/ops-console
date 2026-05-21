@@ -1,5 +1,59 @@
 # Progress
 
+## 2026-05-21 — Autonomy Governor + Control Center intervention deployed
+
+- Added Autonomy Governor policy decisions before autonomous task execution, covering L0–L6 levels, high/critical approval gates, scope isolation, verifier requirement, budget pause, capability/tool boundaries, and forbidden wallet/payment/trading/secret/browser-storage actions.
+- Connected safe internal docs/research/projects/design work to L3/L4 auto execution while keeping dev code writes, content publishing, external outreach, deploy/public disclosure, wallet/KYC, live trading, and high/critical actions gated through Ops Console approvals/manual handoff.
+- Updated HQ delegation flow: after child task dispatch, the parent becomes `delegated/waiting_children` and the main/HQ agent returns to `idle`; when child tasks reach terminal states, an aggregation task is created and the main agent runs only for aggregation.
+- Reduced Discord reporting noise to delegation-completed, approval-needed, blocked, and final/result report classes; routine child progress stays in Ops Console.
+- Extended `/control` with Autonomy Dashboard, Autonomy Policy Matrix, Live Intervention Panel, and Pending Human Decisions backed by Ops Console DB/CommandQueue, not placeholder UI.
+- Added CommandQueue-backed intervention actions: pause, resume, cancel, reprioritize, reassign, scope-limit, with rollback/restart/kill staying high-risk approval gated.
+- Verification passed: full `pnpm test` 32 files / 109 tests, `pnpm typecheck`, `pnpm lint` warning-only, `pnpm build`, `pnpm prisma:validate`, runtime rebuild/restart, health smoke, `/control` UI marker smoke, and intervention API smoke with cleanup.
+- No Prisma schema migration and no public routing/bind change.
+
+## 2026-05-21 — Discord main-agent gateway hook completed
+
+- Added Company Discord `main-agent` intake hook in Hermes gateway so prefixed main-channel instructions are mirrored into Ops Console without relying on the LLM to remember a curl/API step.
+- Configured hook only for main channel `1503190214439600228` with prefixes `프로젝트:`, `새 프로젝트:`, `/project ` to avoid accidental project spam.
+- Restarted Company gateway and smoke-tested the hook path against the real local Ops Console endpoint; smoke project/tasks were deleted after verification.
+
+## 2026-05-21 — New Project intake + Discord main-agent auto-distribution live
+
+- Implemented live project registration through `/projects/new` and `POST /api/projects`: creates active `Project`, records Project Router metadata (`projectSlug`, `workstream`, `ownerAgentSlug`, `threadKey`), then submits the HQ instruction.
+- Added `POST /api/discord/main-agent/goals` so Discord/main-agent goals register projects in Ops Console and route through the same HQ orchestration path.
+- HQ safe internal intake now creates a running parent task plus queued role-agent child tasks, preserving approval gates for deploy/external/wallet/trading/paid/public/high/critical work.
+- Fixed second-level task slug collision by including milliseconds in HQ/instruction run IDs.
+- Verification passed: focused tests 5 files / 16 tests in runtime, source `pnpm typecheck`, source/runtime `pnpm build`, source `pnpm lint` warning-only, runtime health, `/projects/new` marker smoke, `/api/projects` smoke, `/api/discord/main-agent/goals` smoke, live sidebar parse `['Control', '프로젝트']`. Smoke projects were deleted after verification.
+
+## 2026-05-21 — Card News Dashboard verifier docs
+
+- Created `artifacts/ops-console/card-news-dashboard/VERIFIER_REPORT.md` with final plan, PASS/BLOCKED verifier rules, success criteria checklist, and hq-agent risk boundary review conditions.
+- Linked the verifier artifact from `docs/INDEX.md` and Company wiki `docs/INDEX.md`; prepended Company `log.md` entry.
+- Scope stayed docs-only: no app code, schema, runtime, deploy, external send, or secret access.
+
+## 2026-05-21 — Restored retired-menu boundary after deployment regression
+
+- Root cause: deployment sync copied the full source `src/` tree over runtime, while the source tree still contained resurrected standalone route/menu code and lacked the runtime-only `operator-navigation` deletion boundary.
+- Restored canonical sidebar to only `Control` and `프로젝트`, restored `src/lib/operator-navigation.ts`, removed retired standalone route directories, and redirected `/` to `/control`.
+- Updated stale links to use `/control` anchors instead of retired standalone pages.
+- Verification passed: operator-navigation/project-workspace focused tests, `pnpm typecheck`, runtime `pnpm build`, health check, and live nav parse showing `['Control', '프로젝트']`.
+
+## 2026-05-21 — Project Workspace deployed to production-private runtime
+
+- Operator approved deployment after the read-only Project Workspace v1 implementation.
+- Synced buildable app source to `/Users/domclaw/ops-console-runtime`, preserving runtime `.env` and avoiding public routing changes.
+- Rebuilt runtime successfully: `pnpm prisma:validate`, `pnpm docker:config`, `pnpm build`.
+- Restarted launchd services: `ai.company.ops-console.app`, `ai.company.ops-console.proxy`, `ai.company.ops-console.command-worker`, `ai.company.ops-console.agent-worker`, `ai.company.ops-console.report-worker`.
+- Smoke passed: `http://127.0.0.1:3000/api/health`, `http://127.0.0.1:3010/api/health`, and `/projects/cmoss0dt5000v2g0j6c9f9dun` renders Project Workspace role bubbles and honest sync label.
+
+## 2026-05-21 — Project Workspace read-only vertical slice
+
+- Implemented `/projects/[id]` Project Workspace v1 with seven visible role-agent bubbles: Lead, Research, Design, Dev, QA, Docs, Ops.
+- Added pure projection helper `src/lib/project-workspace.ts` and tests for role mapping, empty-role visibility, status-derived progress, and blocker/failure priority.
+- Added `src/components/project-workspace.tsx` plus responsive dark UI styles; sync copy is labeled honestly as polling/SSE fallback, not true realtime.
+- No Prisma schema migration, no new executor path, no external/public/destructive action.
+- Verification passed: focused vitest, full `pnpm test`, `pnpm typecheck`, `pnpm lint` warning-only, `pnpm prisma:validate`, `pnpm build`, `pnpm docker:config`, temporary runtime health/page marker smoke on port 3100.
+
 ## 2026-05-20 — Hermes Workspace retired; Company-native monitor/manage surface
 
 - Retired Hermes Workspace from live Company operation: launchd service removed, active path removed, Company Router `workspace` service removed, and `/workspace` + `/operations` now return `410 retired_surface`.

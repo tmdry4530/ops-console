@@ -18,6 +18,9 @@ const STATUS_LABELS: Record<string, string> = {
   blocked: "차단됨",
   failed: "실패",
   rejected: "거절됨",
+  offline: "오프라인",
+  unassigned: "미배정",
+  waiting: "대기",
   warning: "주의",
   info: "정보",
   danger: "위험",
@@ -48,6 +51,7 @@ const APPROVAL_TYPE_LABELS: Record<string, string> = {
 };
 
 const ROUTE_SEGMENT_LABELS: Record<string, string> = {
+  control: "컨트롤",
   dashboard: "대시보드",
   approvals: "승인",
   agents: "에이전트",

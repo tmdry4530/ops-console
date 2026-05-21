@@ -2,6 +2,9 @@ import { promises as fs } from "node:fs";
 import { db } from "@/lib/db";
 import { contentHash } from "./ingest/hash";
 import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./department-adapters";
+import { decideAutonomy } from "./autonomy-governor";
+import { planAggregationAfterChildTerminals } from "./autonomy-orchestration";
+import { selectCapabilityForTask } from "./agent-capabilities";
 import { hermesBridgeDecision, hermesReportPathForTask, runHermesCompanyTask } from "./hermes-bridge";
 import { planIdleCompanyWork, standingWorkRunSlug } from "./idle-work-planner";
 import { reportSummaryFromMarkdown } from "./task-observability";
@@ -13,8 +16,8 @@ export const AUTONOMOUS_WORK_AGENT_SLUGS = [
   "projects-agent",
   "dev-agent",
   "content-agent",
-  "trading-agent",
-  "docs-agent"
+  "docs-agent",
+  "design-agent"
 ] as const;
 
 export type AutonomousTaskRecord = {
@@ -23,6 +26,7 @@ export type AutonomousTaskRecord = {
   summary: string | null;
   riskLevel: RiskLevel;
   projectId?: string | null;
+  projectSlug?: string | null;
   agent: {
     id: string;
     slug: string;
@@ -68,6 +72,16 @@ export function shouldCompleteHqParent(childStatuses: TaskStatus[]): boolean {
   return childStatuses.length > 0 && childStatuses.every((status) => status === "completed" || status === "failed");
 }
 
+function envFlag(name: string, defaultValue = false): boolean {
+  const value = process.env[name];
+  if (value == null || value === "") return defaultValue;
+  return value === "true" || value === "1" || value.toLowerCase() === "yes";
+}
+
+function discordOutboxEventsEnabled(): boolean {
+  return envFlag("OPS_DISCORD_OUTBOX_EVENT_CREATION_ENABLED", false);
+}
+
 function isSafeAutonomousRisk(riskLevel: RiskLevel): boolean {
   return riskLevel === "low" || riskLevel === "medium";
 }
@@ -84,6 +98,30 @@ function timestamp(now: Date): string {
   return now.toISOString();
 }
 
+function taskText(task: AutonomousTaskRecord): string {
+  return `${task.title}\n${task.summary ?? ""}`;
+}
+
+function actionTypeForAutonomousTask(task: AutonomousTaskRecord): string {
+  const text = taskText(task).toLowerCase();
+  if (task.agent?.slug === "dev-agent" && /code write|repo_write|파일 수정|코드 작성|구현|patch|패치/.test(text)) return "code_write";
+  if (/deploy|배포/.test(text)) return "deploy";
+  if (/wallet|지갑|kyc/.test(text)) return "wallet_kyc";
+  if (/live trading|실거래|order execution|주문/.test(text)) return "live_trading";
+  if (/payment|결제|paid action|유료/.test(text)) return "paid_action";
+  if (/secret|token|cookie|browser storage|비밀키|토큰|쿠키/.test(text)) return "secret_access";
+  if (/public disclosure|공개/.test(text)) return "public_disclosure";
+  if (requiresRevenueOutreachApproval(task)) return "revenue_outreach";
+  return "operator_instruction";
+}
+
+function requestedToolsForAutonomousTask(task: AutonomousTaskRecord, capabilityTools: string[]): string[] {
+  const actionType = actionTypeForAutonomousTask(task);
+  if (actionType === "code_write") return ["repo_write", "test_runner"];
+  if (["deploy", "wallet_kyc", "live_trading", "paid_action", "secret_access", "public_disclosure"].includes(actionType)) return [actionType];
+  return capabilityTools.filter((tool) => !/external_send|wallet|secret|order|payment|deploy/.test(tool));
+}
+
 export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date()): AutonomousTaskRunPlan {
   if (!task.agent || !AUTONOMOUS_WORK_AGENT_SLUGS.includes(task.agent.slug as (typeof AUTONOMOUS_WORK_AGENT_SLUGS)[number])) {
     return { kind: "skip", events: [] };
@@ -96,6 +134,75 @@ export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date
     mode: "autonomous_agent_worker",
     executedAt
   };
+
+  const capabilitySeed = selectCapabilityForTask(task.agent.slug, taskText(task));
+  const requestedTools = requestedToolsForAutonomousTask(task, capabilitySeed?.allowedTools ?? []);
+  const actionType = actionTypeForAutonomousTask(task);
+  const governorDecision = decideAutonomy({
+    systemScope: "Company",
+    projectSlug: task.projectSlug ?? "ops-console",
+    agentSlug: task.agent.slug,
+    actionType,
+    riskLevel: task.riskLevel,
+    requestedTools,
+    capability: capabilitySeed
+      ? { capabilityKey: capabilitySeed.capabilityKey, allowedTools: capabilitySeed.allowedTools, maxRisk: capabilitySeed.maxRisk, requiresApproval: capabilitySeed.requiresApproval }
+      : null,
+    policy: { action: "allow", riskLevel: task.riskLevel },
+    budget: { requestedUsd: capabilitySeed?.avgCost ?? 0, remainingUsd: Number.POSITIVE_INFINITY },
+    approvalStatus: null,
+    verifier: { required: true, available: true }
+  });
+
+  if (["block", "require_manual_handoff", "require_approval", "pause_scope", "escalate_hq"].includes(governorDecision.decision)) {
+    const highSeverity = governorDecision.decision === "block" || task.riskLevel === "critical" || task.riskLevel === "high";
+    return {
+      kind: "request_console_approval",
+      taskStatus: "waiting_approval",
+      agentStatus: "waiting_approval",
+      taskNextAction: `Autonomy Governor: ${governorDecision.decision} · ${governorDecision.reasons.join(",")}`,
+      approval: {
+        type: actionType === "revenue_outreach" ? "revenue_outreach" : actionType === "deploy" ? "deploy" : actionType === "wallet_kyc" ? "wallet_kyc" : actionType === "live_trading" ? "live_trading" : actionType === "paid_action" ? "paid_action" : actionType === "public_disclosure" ? "public_disclosure" : "other",
+        status: governorDecision.decision === "require_manual_handoff" ? "manual_handoff" : "pending",
+        riskLevel: task.riskLevel,
+        title: `Autonomy Governor decision · ${task.agent.name}`,
+        summary: [`Decision: ${governorDecision.decision}`, `Level: ${governorDecision.autonomyLevel}`, `Reasons: ${governorDecision.reasons.join(", ")}`, "", `Task: ${task.title}`, `Summary: ${task.summary ?? "없음"}`].join("\n"),
+        requestedBy: "autonomy-governor"
+      },
+      events: [
+        {
+          type: "autonomy.governor.decision",
+          severity: highSeverity ? "warning" : "info",
+          message: `Autonomy Governor ${governorDecision.decision}: ${task.agent.slug}`,
+          metadata: { ...baseMetadata, decision: governorDecision.decision, autonomyLevel: governorDecision.autonomyLevel, reasons: governorDecision.reasons.join(","), actionType, requestedTools: requestedTools.join(","), verifierRequired: governorDecision.verifierRequired }
+        },
+        {
+          type: "discord.report.queued",
+          severity: "info",
+          message: `Discord status report queued: ${task.agent.slug}`,
+          metadata: { ...baseMetadata, purpose: "approval_needed", approvalRequest: false, consoleApprovalId: "pending", decision: governorDecision.decision }
+        }
+      ]
+    };
+  }
+
+  if (governorDecision.decision === "allow_plan_only") {
+    return {
+      kind: "request_console_approval",
+      taskStatus: "waiting_approval",
+      agentStatus: "waiting_approval",
+      taskNextAction: `Autonomy Governor plan-only gate · ${governorDecision.reasons.join(",")}`,
+      approval: {
+        type: "other",
+        status: "pending",
+        riskLevel: task.riskLevel,
+        title: `Plan-only review 필요 · ${task.agent.name}`,
+        summary: `Autonomy Governor가 실행 대신 계획/검토만 허용했습니다.\n\nDecision: ${governorDecision.decision}\nReasons: ${governorDecision.reasons.join(", ")}\nTask: ${task.title}`,
+        requestedBy: "autonomy-governor"
+      },
+      events: [{ type: "autonomy.governor.decision", severity: "info", message: `Autonomy Governor plan-only: ${task.agent.slug}`, metadata: { ...baseMetadata, decision: governorDecision.decision, autonomyLevel: governorDecision.autonomyLevel, reasons: governorDecision.reasons.join(","), actionType } }]
+    };
+  }
 
   if (requiresRevenueOutreachApproval(task)) {
     return {
@@ -206,7 +313,7 @@ export async function completeFinishedHqParents(childTaskId: string, now = new D
     .map((metadata) => metadata.parentTaskId)
     .filter((parentTaskId): parentTaskId is string => typeof parentTaskId === "string")));
 
-  const completedParentTaskIds: string[] = [];
+  const aggregationParentTaskIds: string[] = [];
   for (const parentTaskId of parentTaskIds) {
     const siblingEvents = await db.event.findMany({
       where: { type: "hq.delegation.created" },
@@ -219,28 +326,52 @@ export async function completeFinishedHqParents(childTaskId: string, now = new D
     const childTasks = await db.task.findMany({ where: { id: { in: childTaskIds } }, select: { status: true } });
     if (!shouldCompleteHqParent(childTasks.map((task) => task.status))) continue;
 
-    const parentTasks = await db.task.findMany({ where: { id: { in: [parentTaskId] } }, select: { agentId: true } });
-    const parentAgentIds = parentTasks.map((task) => task.agentId).filter((agentId): agentId is string => Boolean(agentId));
-    await db.task.update({
-      where: { id: parentTaskId },
-      data: { status: "completed", blocker: null, nextAction: `HQ delegated work completed at ${now.toISOString()}` }
+    const existingAggregation = await db.event.findFirst({
+      where: { type: "hq.aggregation.created", metadata: { path: ["parentTaskId"], equals: parentTaskId } },
+      select: { id: true }
     });
-    if (parentAgentIds.length > 0) {
-      await db.agent.updateMany({ where: { id: { in: parentAgentIds } }, data: hqParentAgentCompletionState() });
+    if (existingAggregation) continue;
+
+    const parentTask = await db.task.findUnique({ where: { id: parentTaskId }, select: { agentId: true, projectId: true, slug: true, title: true } });
+    const aggregationPlan = planAggregationAfterChildTerminals({
+      parentTaskId,
+      childStatuses: childTasks.map((task) => task.status),
+      now
+    });
+    if (!parentTask || !aggregationPlan?.aggregationTask || !aggregationPlan.mainAgent || !aggregationPlan.parentTask || !aggregationPlan.eventMetadata) continue;
+
+    await db.task.update({ where: { id: parentTaskId }, data: aggregationPlan.parentTask });
+    const aggregationTaskPlan = aggregationPlan.aggregationTask;
+    const aggregationTask = await db.task.create({
+      data: {
+        slug: `${parentTask.slug}-${aggregationTaskPlan.slugSuffix}`.slice(0, 120),
+        title: aggregationTaskPlan.title,
+        status: aggregationTaskPlan.status,
+        riskLevel: aggregationTaskPlan.riskLevel,
+        summary: aggregationTaskPlan.summary,
+        nextAction: aggregationTaskPlan.nextAction,
+        agentId: parentTask.agentId,
+        projectId: parentTask.projectId
+      },
+      select: { id: true, slug: true }
+    });
+    if (parentTask.agentId) {
+      await db.agent.update({ where: { id: parentTask.agentId }, data: aggregationPlan.mainAgent });
     }
     await db.event.create({
       data: {
-        type: "hq.orchestration.completed",
+        type: "hq.aggregation.created",
         severity: "info",
-        message: "HQ orchestration completed",
-        taskId: parentTaskId,
-        metadata: { completedAt: now.toISOString(), childTaskCount: childTaskIds.length }
+        message: "HQ aggregation task created after child terminal states",
+        taskId: aggregationTask.id,
+        projectId: parentTask.projectId ?? undefined,
+        metadata: { ...aggregationPlan.eventMetadata, parentTaskId, aggregationTaskId: aggregationTask.id, aggregationTaskSlug: aggregationTask.slug }
       }
     });
-    completedParentTaskIds.push(parentTaskId);
+    aggregationParentTaskIds.push(parentTaskId);
   }
 
-  return completedParentTaskIds;
+  return aggregationParentTaskIds;
 }
 
 export async function processAutonomousTask(task: AutonomousTaskRecord, now = new Date()): Promise<AutonomousTaskRunResult> {
@@ -338,21 +469,23 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
           projectId: task.projectId ?? undefined,
           taskId: task.id,
           artifactId: artifact.id,
-          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, artifactId: artifact.id, executedAt: hermesResult.executedAt, stdout: hermesResult.stdout.slice(0, 12000), stderr: hermesResult.stderr.slice(0, 4000), operatorSummary, git: hermesResult.git }
+          metadata: { mode: "hermes_company_bridge", reportPath: hermesResult.reportPath, artifactId: artifact.id, executedAt: hermesResult.executedAt, stdout: hermesResult.stdout.slice(0, 12000), stderr: hermesResult.stderr.slice(0, 4000), operatorSummary, git: hermesResult.git, kanban: hermesResult.kanban }
         }
       });
-      await tx.event.create({
-        data: {
-          type: "discord.report.queued",
-          severity: "info",
-          message: `Discord result report queued: ${task.agent!.slug}`,
-          agentId: task.agent!.id,
-          projectId: task.projectId ?? undefined,
-          taskId: task.id,
-          artifactId: artifact.id,
-          metadata: { channel: task.agent!.slug.replace("-agent", ""), message: [`상태: ${hermesResult.status === "completed" ? "완료" : "실패"}`, `작업: ${task.title}`, `에이전트: ${task.agent!.slug}`, `핵심: ${(operatorSummary || "상세 요약 없음").replace(/\n+/g, " / ").slice(0, 500)}`, `산출물: ${hermesResult.reportPath}`, hermesResult.git?.commit ? `GitHub 반영: ${hermesResult.git.commit}` : `GitHub 반영: ${hermesResult.git?.status ?? "unknown"}`, `다음액션: Ops Console에서 결과 확인`].join("\n"), purpose: "result_report", mode: "hermes_company_bridge" }
-        }
-      });
+      if (discordOutboxEventsEnabled()) {
+        await tx.event.create({
+          data: {
+            type: "discord.report.queued",
+            severity: "info",
+            message: `Discord result report queued: ${task.agent!.slug}`,
+            agentId: task.agent!.id,
+            projectId: task.projectId ?? undefined,
+            taskId: task.id,
+            artifactId: artifact.id,
+            metadata: { channel: task.agent!.slug.replace("-agent", ""), message: [`상태: ${hermesResult.status === "completed" ? "완료" : "실패"}`, `작업: ${task.title}`, `에이전트: ${task.agent!.slug}`, `핵심: ${(operatorSummary || "상세 요약 없음").replace(/\n+/g, " / ").slice(0, 500)}`, `산출물: ${hermesResult.reportPath}`, hermesResult.git?.commit ? `GitHub 반영: ${hermesResult.git.commit}` : `GitHub 반영: ${hermesResult.git?.status ?? "unknown"}`, `다음액션: Ops Console에서 결과 확인`].join("\n"), purpose: "result_report", mode: "hermes_company_bridge" }
+          }
+        });
+      }
     });
 
     const completedParentTaskIds = await completeFinishedHqParents(task.id, now);
@@ -399,7 +532,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
 
     await tx.task.update({ where: { id: task.id }, data: { status: plan.taskStatus, blocker: null, nextAction: plan.taskNextAction } });
     await tx.agent.update({ where: { id: task.agent!.id }, data: { status: plan.agentStatus, currentTask: null } });
-    for (const event of plan.events.slice(1)) {
+    for (const event of plan.events.slice(1).filter((event) => discordOutboxEventsEnabled() || event.type !== "discord.report.queued")) {
       await tx.event.create({
         data: {
           ...event,
@@ -419,6 +552,7 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
 }
 
 export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status: "created" | "skipped"; reason?: string; runSlug?: string; childTaskCount?: number }> {
+  if (!envFlag("OPS_COMPANY_AUTO_WORK_ENABLED", false)) return { status: "skipped", reason: "auto_work_disabled" };
   const autonomousAgentSlugs = [...AUTONOMOUS_WORK_AGENT_SLUGS];
   const activeAutonomousTasks = await db.task.count({
     where: {
@@ -511,23 +645,24 @@ export async function processNextAutonomousTask(now = new Date()): Promise<Auton
   await ensureIdleCompanyWork(now);
   const task = await db.task.findFirst({
     where: {
-      status: "running",
+      status: { in: ["queued", "running"] },
       agent: { slug: { in: [...AUTONOMOUS_WORK_AGENT_SLUGS] } }
     },
-    orderBy: { updatedAt: "asc" },
+    orderBy: [{ status: "asc" }, { updatedAt: "asc" }],
     select: {
       id: true,
       title: true,
       summary: true,
       riskLevel: true,
       projectId: true,
+      project: { select: { slug: true } },
       agent: { select: { id: true, slug: true, name: true } }
     }
   });
 
   if (!task) {
-    return { status: "skipped", reason: "no_running_autonomous_tasks" };
+    return { status: "skipped", reason: "no_queued_or_running_autonomous_tasks" };
   }
 
-  return processAutonomousTask(task, now);
+  return processAutonomousTask({ ...task, projectSlug: task.project?.slug ?? null }, now);
 }
