@@ -6,7 +6,7 @@ describe("autonomy orchestration state", () => {
     const state = parentDelegationStateAfterDispatch(7, "2026-05-21T02:00:00.000Z");
 
     expect(state.parentTask).toMatchObject({
-      status: "queued",
+      status: "waiting_children",
       nextAction: "waiting_children · 0/7 child tasks terminal · currentStep=awaiting_child_results · statusReason=delegation_completed"
     });
     expect(state.parentEventMetadata).toMatchObject({ orchestrationState: "waiting_children", childTaskCount: 7 });
@@ -21,6 +21,7 @@ describe("autonomy orchestration state", () => {
         status: "queued",
         nextAction: "main-agent aggregation queued · verifier evidence required before parent completion"
       },
+      parentTask: { status: "aggregation_pending" },
       mainAgent: { status: "idle", currentTask: null }
     });
 

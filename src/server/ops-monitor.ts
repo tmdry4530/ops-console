@@ -57,10 +57,8 @@ export type HqOrchestrationRuntimeTransition = {
 
 export function hqOrchestrationStatusFromChildren(childStatuses: TaskStatus[]): TaskStatus {
   if (childStatuses.length === 0) return "completed";
-  // TaskStatus has no waiting_children/planned enum today. Use queued as the
-  // non-running delegated-equivalent, with nextAction/event metadata carrying
-  // currentStep=statusReason for the operator UI.
-  return "queued";
+  if (childStatuses.every(isTerminalTaskStatus)) return "aggregation_pending";
+  return "waiting_children";
 }
 
 export function planHqOrchestrationRuntimeTransition(input: {
@@ -100,7 +98,7 @@ export function planHqOrchestrationRuntimeTransition(input: {
   if (input.aggregationTask?.status === "completed") {
     return {
       parentTask: {
-        status: "queued",
+        status: "awaiting_verifier",
         blocker: null,
         nextAction: "aggregation_completed · verifier pending · completed 전 verifier gate 유지"
       },
@@ -119,7 +117,7 @@ export function planHqOrchestrationRuntimeTransition(input: {
   if (input.aggregationTask) {
     return {
       parentTask: {
-        status: "queued",
+        status: "aggregation_pending",
         blocker: null,
         nextAction: `aggregation_pending · ${terminalChildTaskCount}/${childTaskCount} child tasks terminal · aggregation task ${input.aggregationTask.status}`
       },
@@ -138,7 +136,7 @@ export function planHqOrchestrationRuntimeTransition(input: {
   if (childTaskCount > 0 && terminalChildTaskCount === childTaskCount) {
     return {
       parentTask: {
-        status: "queued",
+        status: "aggregation_pending",
         blocker: null,
         nextAction: `aggregation_pending · ${terminalChildTaskCount}/${childTaskCount} child tasks terminal · verifier gate required before completion`
       },
@@ -212,7 +210,7 @@ export type AgentOpsMonitorItem = {
   recentTasks: Task[];
   recentEvents: Event[];
   recentArtifacts: Artifact[];
-  taskCounts: Record<"queued" | "running" | "waiting_approval" | "needs_changes" | "completed" | "failed", number>;
+  taskCounts: Record<"queued" | "running" | "waiting_children" | "aggregation_pending" | "awaiting_verifier" | "waiting_approval" | "needs_changes" | "completed" | "failed", number>;
 };
 
 export type CompanyOpsMonitor = {
@@ -231,13 +229,13 @@ export type CompanyOpsMonitor = {
   };
 };
 
-const ACTIVE_TASK_STATUSES: TaskStatus[] = ["queued", "running", "waiting_approval", "needs_changes"];
+const ACTIVE_TASK_STATUSES: TaskStatus[] = ["queued", "running", "waiting_children", "aggregation_pending", "awaiting_verifier", "waiting_approval", "needs_changes"];
 
 function countTasks(tasks: Task[]): AgentOpsMonitorItem["taskCounts"] {
   return tasks.reduce<AgentOpsMonitorItem["taskCounts"]>((counts, task) => {
     counts[task.status] += 1;
     return counts;
-  }, { queued: 0, running: 0, waiting_approval: 0, needs_changes: 0, completed: 0, failed: 0 });
+  }, { queued: 0, running: 0, waiting_children: 0, aggregation_pending: 0, awaiting_verifier: 0, waiting_approval: 0, needs_changes: 0, completed: 0, failed: 0 });
 }
 
 export async function getCompanyOpsMonitor(now = new Date()): Promise<CompanyOpsMonitor> {

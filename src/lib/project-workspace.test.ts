@@ -50,6 +50,9 @@ describe("project workspace projection", () => {
   it("uses honest estimated progress from task status and artifacts", () => {
     expect(estimatedTaskProgress("queued")).toBe(10);
     expect(estimatedTaskProgress("waiting_approval")).toBe(25);
+    expect(estimatedTaskProgress("waiting_children")).toBe(35);
+    expect(estimatedTaskProgress("aggregation_pending")).toBe(80);
+    expect(estimatedTaskProgress("awaiting_verifier")).toBe(80);
     expect(estimatedTaskProgress("running")).toBe(60);
     expect(estimatedTaskProgress("running", true)).toBe(85);
     expect(estimatedTaskProgress("completed")).toBe(100);
@@ -59,5 +62,7 @@ describe("project workspace projection", () => {
     expect(workspaceStatusFromTasks([{ title: "x", status: "running", blocker: "needs operator" }], [])).toBe("blocked");
     expect(workspaceStatusFromTasks([{ title: "x", status: "failed" }, { title: "y", status: "running" }], [])).toBe("failed");
     expect(workspaceStatusFromTasks([{ title: "x", status: "queued" }], [{ status: "pending" }])).toBe("waiting_approval");
+    expect(workspaceStatusFromTasks([{ title: "x", status: "waiting_children" }], [])).toBe("waiting_children");
+    expect(workspaceStatusFromTasks([{ title: "x", status: "aggregation_pending" }], [])).toBe("aggregation_pending");
   });
 });

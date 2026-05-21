@@ -20,6 +20,9 @@ describe("korean-friendly labels", () => {
     expect(labelForStatus("manual outreach")).toBe("수동 아웃리치");
     expect(labelForStatus("waiting_approval")).toBe("승인 대기");
     expect(labelForStatus("queued")).toBe("큐 대기");
+    expect(labelForStatus("waiting_children")).toBe("하위 작업 대기");
+    expect(labelForStatus("aggregation_pending")).toBe("취합 대기");
+    expect(labelForStatus("awaiting_verifier")).toBe("검증 대기");
     expect(labelForStatus("executing")).toBe("실행 중");
     expect(labelForStatus("waiting_manual_handoff")).toBe("수동 처리 대기");
     expect(labelForStatus("blocked")).toBe("차단됨");

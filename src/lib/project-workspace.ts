@@ -13,6 +13,9 @@ export type ProjectWorkspaceRoleKey = typeof PROJECT_WORKSPACE_ROLE_ORDER[number
 export type ProjectWorkspaceStatus =
   | "idle"
   | "queued"
+  | "waiting_children"
+  | "aggregation_pending"
+  | "awaiting_verifier"
   | "running"
   | "waiting_approval"
   | "blocked"
@@ -158,6 +161,8 @@ export function estimatedTaskProgress(status: string, hasArtifact = false): numb
   if (status === "failed" || status === "cancelled") return 100;
   if (hasArtifact) return 85;
   if (status === "running") return 60;
+  if (status === "waiting_children") return 35;
+  if (status === "aggregation_pending" || status === "awaiting_verifier") return 80;
   if (status === "waiting_approval" || status === "needs_changes") return 25;
   if (status === "queued") return 10;
   return 0;
@@ -167,6 +172,9 @@ export function workspaceStatusFromTasks(tasks: TaskLike[], approvals: ApprovalL
   if (tasks.some((task) => task.status === "failed")) return "failed";
   if (tasks.some((task) => task.status === "needs_changes" || task.blocker)) return "blocked";
   if (tasks.some((task) => task.status === "running")) return "running";
+  if (tasks.some((task) => task.status === "awaiting_verifier")) return "awaiting_verifier";
+  if (tasks.some((task) => task.status === "aggregation_pending")) return "aggregation_pending";
+  if (tasks.some((task) => task.status === "waiting_children")) return "waiting_children";
   if (tasks.some((task) => task.status === "waiting_approval") || approvals.some((approval) => ["pending", "approved_waiting_execution", "executing", "manual_handoff"].includes(approval.status))) {
     return "waiting_approval";
   }
@@ -222,7 +230,7 @@ export function buildProjectWorkspaceProjection(input: WorkspaceInput): ProjectW
       if (!approval.taskId) return role === "lead";
       return tasks.some((task) => "id" in task && task.id === approval.taskId);
     });
-    const activeTask = tasks.find((task) => ["running", "waiting_approval", "needs_changes", "queued"].includes(task.status)) ?? tasks[0];
+    const activeTask = tasks.find((task) => ["running", "awaiting_verifier", "aggregation_pending", "waiting_children", "waiting_approval", "needs_changes", "queued"].includes(task.status)) ?? tasks[0];
     const status = workspaceStatusFromTasks(tasks, approvals);
     const progress = roleProgress(tasks, artifacts);
 
@@ -240,7 +248,7 @@ export function buildProjectWorkspaceProjection(input: WorkspaceInput): ProjectW
   });
 
   const activeRoleCount = roles.filter((role) => !["idle", "unassigned", "completed"].includes(role.status)).length;
-  const blockedRoleCount = roles.filter((role) => ["blocked", "failed", "waiting_approval"].includes(role.status)).length;
+  const blockedRoleCount = roles.filter((role) => ["blocked", "failed", "waiting_approval", "awaiting_verifier"].includes(role.status)).length;
   const roleProgressValues = roles.filter((role) => role.taskCount > 0 || role.artifactCount > 0).map((role) => role.progress);
   const overallProgress = roleProgressValues.length === 0
     ? 0

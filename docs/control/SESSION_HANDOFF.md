@@ -1,3 +1,39 @@
+## Latest ops handoff — 2026-05-21 20:17 KST
+
+Resolved the remaining orchestration-state risk by adding real TaskStatus enum values instead of using `queued` as a delegated parent fallback.
+
+Changed:
+
+- `prisma/schema.prisma` and migration `20260521110500_add_orchestration_task_statuses` — added `waiting_children`, `aggregation_pending`, and `awaiting_verifier` to `TaskStatus`.
+- `src/server/ops-monitor.ts` / `.test.ts` — parent runtime transitions now persist explicit statuses: child execution => `waiting_children`, all children terminal/aggregation open => `aggregation_pending`, aggregation complete but verifier missing => `awaiting_verifier`, verifier passed => `completed`.
+- `src/server/autonomy-orchestration.ts` / `.test.ts` — dispatch and aggregation planning now emit explicit parent statuses.
+- `src/server/control-center.ts`, `src/lib/korean-labels.ts`, `src/lib/project-workspace.ts`, `src/components/status-badge.tsx`, `src/components/project-workspace.tsx` and tests — UI/projection helpers understand the new non-running parent states.
+- `docs/control/DECISIONS.md` and `docs/control/PROGRESS.md` — replaced the old queued-fallback note with the explicit status model.
+
+Runtime/deploy:
+
+- Synced source to `/Users/domclaw/ops-console-runtime`, preserving runtime `.env`.
+- Applied Prisma migration with `pnpm prisma:deploy`.
+- Rebuilt runtime and restarted `ai.company.ops-console.app`; proxy health stayed OK.
+- Ran `syncHqOrchestrationRuntime()` once after migration. Existing parents now show `aggregation_pending` / `awaiting_verifier`; `main-agent` and `hq-agent` remain idle/currentTask null.
+
+Verification:
+
+- RED confirmed first: updated ops-monitor expectations failed while code still returned `queued`.
+- Full source verification passed: `pnpm test` — 35 files / 119 tests.
+- `pnpm typecheck` passed.
+- `pnpm build` passed.
+- `pnpm prisma:validate` passed.
+- `pnpm docker:config` passed.
+- `pnpm lint` passed with the existing custom-font warning only.
+- Runtime migration/build/health passed: `127.0.0.1:3000/api/health`, `127.0.0.1:3010/api/health`, and `/control` returned 200 after restarting the app service with regenerated Prisma client.
+
+Safety:
+
+- No public bind/routing change.
+- No verifier bypass; `awaiting_verifier` remains non-completed.
+- Secret/token/cookie/browser-storage/private key/DB URL values were not printed or logged.
+
 ## Latest ops handoff — 2026-05-21 20:02 KST
 
 Fixed the HQ/main orchestration runtime regression where parent tasks and parent agents returned to `running` while delegated child tasks were still executing.

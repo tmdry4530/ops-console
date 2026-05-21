@@ -34,6 +34,9 @@ enum ProjectStatus {
 enum TaskStatus {
   queued
   running
+  waiting_children
+  aggregation_pending
+  awaiting_verifier
   waiting_approval
   needs_changes
   completed

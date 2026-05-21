@@ -3,7 +3,7 @@ import type { ProjectWorkspaceProjection, ProjectWorkspaceRole } from "@/lib/pro
 
 function roleRingClass(status: ProjectWorkspaceRole["status"]): string {
   if (status === "running") return "role-ring running";
-  if (status === "waiting_approval" || status === "queued") return "role-ring waiting";
+  if (status === "waiting_approval" || status === "queued" || status === "waiting_children" || status === "aggregation_pending" || status === "awaiting_verifier") return "role-ring waiting";
   if (status === "blocked" || status === "failed") return "role-ring danger";
   if (status === "completed") return "role-ring done";
   if (status === "unassigned") return "role-ring unassigned";

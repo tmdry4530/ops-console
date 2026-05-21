@@ -11,7 +11,7 @@ export function parentDelegationStateAfterDispatch(childTaskCount: number, isoTi
 } {
   return {
     parentTask: {
-      status: "queued",
+      status: "waiting_children",
       blocker: null,
       nextAction: `waiting_children · 0/${childTaskCount} child tasks terminal · currentStep=awaiting_child_results · statusReason=delegation_completed`
     },
@@ -53,7 +53,7 @@ export function planAggregationAfterChildTerminals(input: { parentTaskId: string
       nextAction: "main-agent aggregation queued · verifier evidence required before parent completion"
     },
     parentTask: {
-      status: "queued",
+      status: "aggregation_pending",
       blocker: null,
       nextAction: `aggregation_pending · child tasks terminal at ${input.now.toISOString()} · verifier gate required before completion`
     },

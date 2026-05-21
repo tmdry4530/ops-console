@@ -5,7 +5,7 @@ import { buildLocalSystemMonitor } from "./local-system-monitor";
 import { getCompanyOpsMonitor, summarizeAgentOps } from "./ops-monitor";
 import { AUTONOMY_LEVELS, DEFAULT_POLICY_MATRIX } from "./autonomy-governor";
 
-const ACTIVE_TASK_STATUSES = ["queued", "running", "waiting_approval", "needs_changes"] as const;
+const ACTIVE_TASK_STATUSES = ["queued", "running", "waiting_children", "aggregation_pending", "awaiting_verifier", "waiting_approval", "needs_changes"] as const;
 const OPEN_APPROVAL_STATUSES = ["pending", "approved_waiting_execution", "executing", "needs_changes", "manual_handoff"] as const;
 const TRACE_EVENT_TYPES = [
   "ingest.status",

@@ -16,9 +16,9 @@ describe("ops monitor", () => {
   });
 
   it("keeps HQ parent delegated/waiting instead of running while any delegated child is not terminal", () => {
-    expect(hqOrchestrationStatusFromChildren(["completed", "running"])).toBe("queued");
-    expect(hqOrchestrationStatusFromChildren(["queued", "queued"])).toBe("queued");
-    expect(hqOrchestrationStatusFromChildren(["completed", "failed"])).toBe("queued");
+    expect(hqOrchestrationStatusFromChildren(["completed", "running"])).toBe("waiting_children");
+    expect(hqOrchestrationStatusFromChildren(["queued", "queued"])).toBe("waiting_children");
+    expect(hqOrchestrationStatusFromChildren(["completed", "failed"])).toBe("aggregation_pending");
   });
 
   it("returns parent agent to idle while child tasks are still running", () => {
@@ -29,7 +29,7 @@ describe("ops monitor", () => {
       now,
     })).toMatchObject({
       parentTask: {
-        status: "queued",
+        status: "waiting_children",
         nextAction: "waiting_children · 1/3 child tasks terminal · currentStep=awaiting_child_results · statusReason=delegation_completed",
       },
       parentAgent: { status: "idle", currentTask: null },
@@ -56,7 +56,7 @@ describe("ops monitor", () => {
 
     expect(transition).toMatchObject({
       parentTask: {
-        status: "queued",
+        status: "aggregation_pending",
         nextAction: "aggregation_pending · 2/2 child tasks terminal · verifier gate required before completion",
       },
       parentAgent: { status: "idle", currentTask: null },
@@ -77,7 +77,7 @@ describe("ops monitor", () => {
       now,
     })).toMatchObject({
       parentTask: {
-        status: "queued",
+        status: "awaiting_verifier",
         nextAction: "aggregation_completed · verifier pending · completed 전 verifier gate 유지",
       },
       completeParent: false,
