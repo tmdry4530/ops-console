@@ -17,6 +17,8 @@ Approval: `@company approve extend: Autonomous Company Mode scoped implementatio
 
 Implemented and verified on the work branch.
 
+Implementation commit: `29fea01` (`feat: add autonomous company mode mvp`).
+
 ## Included
 
 - Additive Prisma draft surface for Company autonomy:
@@ -62,3 +64,5 @@ Implemented and verified on the work branch.
 Autonomous Company Mode is a scoped implementation draft on the work branch. It creates the model/API/UI path for L5 Fully Autonomous Within Scope, but activation against live runtime still requires a separate deploy/migration approval.
 
 Runtime persistence note: the local test database has not had the new Autonomy tables migrated/applied. Store/API tests therefore verify the documented fallback draft-object path when `AutonomyRun`, `OpportunityCandidate`, `ImprovementCandidate`, `ProjectDraft`, or `OwnerDecisionRequest` tables are absent. Real DB-backed persistence is blocked until a separately approved migration is applied.
+
+Final commit status: implementation changes were committed only from the scoped Autonomous Company Mode file list. Unrelated existing worktree changes were intentionally left unstaged.

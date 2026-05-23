@@ -12,6 +12,7 @@ Date: 2026-05-24 KST
 Branch: `work/ops-console-realtime-control-plane-2026-05-22`
 Scope: local/work-branch implementation only; no production/public deploy.
 Verifier: docs-agent.verifier equivalent checks with hq-agent risk-policy secondary criteria.
+Implementation commit: `29fea01` (`feat: add autonomous company mode mvp`).
 
 ## Commands run
 
