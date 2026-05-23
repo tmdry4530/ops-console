@@ -1,3 +1,11 @@
+---
+task_id: autonomous-company-mode-mvp
+trace_id: trace-autonomy-company-mode-mvp-20260524
+secret_safe: true
+artifact_type: implementation_evidence
+owner: main-agent
+visibility: internal
+---
 # STATUS — Autonomous Company Mode Scoped Implementation
 
 Date: 2026-05-24 KST
@@ -52,3 +60,5 @@ Implemented and verified on the work branch.
 ## Current operating boundary
 
 Autonomous Company Mode is a scoped implementation draft on the work branch. It creates the model/API/UI path for L5 Fully Autonomous Within Scope, but activation against live runtime still requires a separate deploy/migration approval.
+
+Runtime persistence note: the local test database has not had the new Autonomy tables migrated/applied. Store/API tests therefore verify the documented fallback draft-object path when `AutonomyRun`, `OpportunityCandidate`, `ImprovementCandidate`, `ProjectDraft`, or `OwnerDecisionRequest` tables are absent. Real DB-backed persistence is blocked until a separately approved migration is applied.

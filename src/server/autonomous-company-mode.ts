@@ -3,13 +3,14 @@ export type Visibility = "private" | "internal" | "external" | "public";
 export type AutonomyDecision = "allow" | "allow_with_verification" | "require_owner_approval" | "require_manual_handoff" | "block" | "pause" | "lower_autonomy";
 export type EvidenceConfidence = "low" | "medium" | "high";
 
-export type PolicyGates = Partial<Record<"public" | "external" | "paid" | "production" | "secrets" | "mainBranch" | "highCritical" | "scopeExpansion" | "authCryptoAlphaXcdp" | "liveTrading", boolean>>;
+export type PolicyGates = Partial<Record<"public" | "external" | "paid" | "production" | "secrets" | "mainBranch" | "highCritical" | "scopeExpansion" | "authCryptoAlphaXcdp" | "liveTrading" | "orderExecution" | "productActivation", boolean>>;
 
 export type AutonomyPolicyInput = {
   actionType: string;
   riskLevel: RiskLevel;
   visibility: Visibility;
   scopeApproved: boolean;
+  primaryAgent?: string;
   gates?: PolicyGates;
 };
 
@@ -23,8 +24,11 @@ export type AutonomyPolicyResult = {
 };
 
 const RISK_WEIGHT: Record<RiskLevel, number> = { low: 1, medium: 2, high: 3, critical: 4 };
-const CRITICAL_ACTION_RE = /(read[\s_-]*secret|secret|token|cookie|browser[\s_-]*storage|private[\s_-]*key|database[\s_-]*url|db[\s_-]*url|wallet|live[\s_-]*trading|order[\s_-]*execution|approval[\s_-]*bypass|self[\s_-]*authority|credential)/i;
-const OWNER_GATE_RE = /(deploy|publish|external[\s_-]*send|public[\s_-]*release|paid|production|main[\s_-]*branch|scope[\s_-]*(expand|expansion)|project[\s_-]*activation|mvp|runtime[\s_-]*(config|env|credential)|env[\s_-]*(update|change)|config[\s_-]*(update|change)|credential[\s_-]*(update|change)|raise[\s_-]*autonomy|authority[\s_-]*expansion)/i;
+const CRITICAL_ACTION_RE = /(read[\s_-]*secret|secret|token|cookie|browser[\s_-]*storage|private[\s_-]*key|database[\s_-]*url|db[\s_-]*url|DATABASE_URL|wallet|live[\s_-]*trading|trade[\s_-]*execution|place[\s_-]*order|order[\s_-]*(execution|placement)|approval[\s_-]*bypass|self[\s_-]*authority|credential)/i;
+const OWNER_GATE_RE = /(deploy|publish|external[\s_-]*send|public[\s_-]*release|paid|production|main[\s_-]*branch|scope[\s_-]*(expand|expansion)|project[\s_-]*activation|product[\s_-]*activation|mvp|runtime[\s_-]*(config|env|credential)|env[\s_-]*(update|change)|config[\s_-]*(update|change)|credential[\s_-]*(update|change)|raise[\s_-]*autonomy|authority[\s_-]*expansion)/i;
+const RESEARCH_FORBIDDEN_RE = /(deploy|write[\s_-]*code|code[\s_-]*write|modify[\s_-]*(file|code)|implementation|public|publish)/i;
+const CONTENT_FORBIDDEN_RE = /(external[\s_-]*(publish|send|post)|publish[\s_-]*external|public[\s_-]*publish|send[\s_-]*(email|kakao|instagram|line)|social[\s_-]*post)/i;
+const DEV_FORBIDDEN_RE = /(public[\s_-]*(deploy|release|publish)|deploy[\s_-]*public|secret|token|cookie|browser[\s_-]*storage|private[\s_-]*key|database[\s_-]*url|db[\s_-]*url|DATABASE_URL)/i;
 const SECRET_LIKE_RE = /(bearer\s+[a-z0-9._~+/=-]{12,}|token\s*[=:]\s*[^\s`]{12,}|cookie\s*[=:]\s*[^\s`]{12,}|password\s*[=:]\s*[^\s`]{8,}|private\s*key|browser\s*storage|database_url|db\s*url|sk-[a-z0-9_-]{12,})/gi;
 const MEMECOIN_RE = /memecoin|meme coin|doge|shib|pepe/i;
 
@@ -36,6 +40,14 @@ function gateReasons(gates: PolicyGates = {}) {
   return Object.entries(gates).filter(([, active]) => active).map(([gate]) => `${gate}_gate`);
 }
 
+function violatesAgentBoundary(primaryAgent: string | undefined, actionType: string, visibility: Visibility, gates: PolicyGates = {}) {
+  const agent = primaryAgent ?? "";
+  if (agent === "research-agent" && RESEARCH_FORBIDDEN_RE.test(actionType)) return "research_agent_cannot_deploy_or_write_code";
+  if (agent === "content-agent" && (CONTENT_FORBIDDEN_RE.test(actionType) || visibility === "external" || visibility === "public" || gates.external || gates.public)) return "content_agent_cannot_external_publish";
+  if (agent === "dev-agent" && (DEV_FORBIDDEN_RE.test(actionType) || visibility === "public" || gates.public || gates.secrets)) return "dev_agent_cannot_public_deploy_or_access_secrets";
+  return undefined;
+}
+
 export function redactSecretLikeText(text: string) {
   return text.replace(SECRET_LIKE_RE, "[REDACTED_SECRET_LIKE]");
 }
@@ -43,9 +55,13 @@ export function redactSecretLikeText(text: string) {
 export function evaluateAutonomyPolicy(input: AutonomyPolicyInput): AutonomyPolicyResult {
   const reasons = gateReasons(input.gates);
   const gates = input.gates ?? {};
-  const criticalGate = gates.secrets || gates.liveTrading || CRITICAL_ACTION_RE.test(input.actionType);
-  const ownerGate = gates.public || gates.external || gates.paid || gates.production || gates.mainBranch || gates.scopeExpansion || gates.authCryptoAlphaXcdp || OWNER_GATE_RE.test(input.actionType) || input.visibility === "public" || input.visibility === "external" || !input.scopeApproved;
+  const criticalGate = gates.secrets || gates.liveTrading || gates.orderExecution || CRITICAL_ACTION_RE.test(input.actionType);
+  const ownerGate = gates.public || gates.external || gates.paid || gates.production || gates.mainBranch || gates.scopeExpansion || gates.authCryptoAlphaXcdp || gates.productActivation || OWNER_GATE_RE.test(input.actionType) || input.visibility === "public" || input.visibility === "external" || !input.scopeApproved;
+  const agentBoundaryViolation = violatesAgentBoundary(input.primaryAgent, input.actionType, input.visibility, gates);
 
+  if (agentBoundaryViolation) {
+    return { decision: "block", riskLevel: "critical", requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, reasons: [...reasons, agentBoundaryViolation] };
+  }
   if (criticalGate) {
     return { decision: "block", riskLevel: "critical", requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, reasons: [...reasons, "critical_or_secret_like_action_blocked"] };
   }
@@ -185,6 +201,103 @@ export function buildAutonomySchedulerDraft(input: { now: Date }) {
       { type: "executive_brief", cadence: "daily", primaryAgent: "content-agent", verifier: "main-agent" }
     ]
   };
+}
+
+export type AutonomyRunPlan = {
+  id: string;
+  runType: string;
+  status: "queued" | "running" | "waiting_approval" | "verifying" | "completed" | "blocked";
+  decision: AutonomyDecision;
+  primaryAgent: string;
+  traceId: string;
+  eventIds: string[];
+  artifactIds: string[];
+  verificationIds: string[];
+  candidateIds: string[];
+  projectDraftIds: string[];
+  ownerDecisionRequestIds: string[];
+  steps: { name: string; agent: string; status: "pending" | "completed" }[];
+  metrics: Record<string, number | string>;
+};
+
+export function buildAutonomyRunPlan(input: { runType: string; primaryAgent: string; now: Date; riskLevel?: RiskLevel; visibility?: Visibility; scopeApproved?: boolean; gates?: PolicyGates; candidateIds?: string[]; projectDraftIds?: string[]; ownerDecisionRequestIds?: string[] }): AutonomyRunPlan {
+  const slug = slugify(input.runType);
+  const stamp = input.now.toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+  const policy = evaluateAutonomyPolicy({ actionType: input.runType, riskLevel: input.riskLevel ?? "medium", visibility: input.visibility ?? "internal", scopeApproved: input.scopeApproved ?? true, primaryAgent: input.primaryAgent, gates: input.gates });
+  const status = policy.decision === "require_owner_approval" ? "waiting_approval" : policy.decision === "block" ? "blocked" : "queued";
+  return {
+    id: `autonomy-run-${slug}-${stamp}`,
+    runType: input.runType,
+    status,
+    decision: policy.decision,
+    primaryAgent: input.primaryAgent,
+    traceId: `trace-autonomy-${slug}-${stamp}`,
+    eventIds: [`event-autonomy-${slug}-planned-${stamp}`],
+    artifactIds: [`artifact-autonomy-${slug}-evidence-${stamp}`],
+    verificationIds: [`verification-autonomy-${slug}-policy-${stamp}`],
+    candidateIds: input.candidateIds ?? [],
+    projectDraftIds: input.projectDraftIds ?? [],
+    ownerDecisionRequestIds: input.ownerDecisionRequestIds ?? [],
+    steps: [
+      { name: "policy_gate", agent: "hq-agent", status: "completed" },
+      { name: input.runType, agent: input.primaryAgent, status: "pending" },
+      { name: "independent_verification", agent: "docs-agent.verifier", status: "pending" }
+    ],
+    metrics: { candidatesCreated: (input.candidateIds ?? []).length, projectDraftsCreated: (input.projectDraftIds ?? []).length, ownerDecisionsCreated: (input.ownerDecisionRequestIds ?? []).length }
+  };
+}
+
+export type AutonomyControlInput = { action: "pause" | "resume" | "lower_autonomy" | "raise_autonomy" | "emergency_stop"; currentLevel: string; requestedLevel?: string };
+export function evaluateAutonomyControlAction(input: AutonomyControlInput) {
+  if (input.action === "pause") return { decision: "allow" as const, nextState: "paused", nextLevel: input.currentLevel, reasons: ["safe_containment_control"] };
+  if (input.action === "emergency_stop") return { decision: "allow" as const, nextState: "emergency_stop", nextLevel: "L0", reasons: ["emergency_stop_containment"] };
+  if (input.action === "lower_autonomy") {
+    const requested = input.requestedLevel ?? "L0";
+    return { decision: "allow" as const, nextState: "normal", nextLevel: requested, reasons: ["lowering_autonomy_is_safe"] };
+  }
+  return { decision: "require_owner_approval" as const, nextState: "approval_required", nextLevel: input.requestedLevel ?? input.currentLevel, reasons: ["resume_or_raise_requires_owner_approval"] };
+}
+
+export function runServiceImprovementRadar(input: { services: { name: string; area: ImprovementCandidate["area"]; symptom: string; confidence: EvidenceConfidence }[]; now?: Date }) {
+  const improvements = input.services.map((service) => buildImprovementCandidate({
+    title: `${service.name} ${service.area} improvement`,
+    area: service.area,
+    problem: service.symptom,
+    evidence: [
+      { title: `${service.name} health signal`, source: "ops-console:service-radar", summary: service.symptom, confidence: service.confidence },
+      { title: `${service.name} operator impact`, source: "ops-console:operator-surface", summary: `${service.area} issue affects internal Company operations`, confidence: service.confidence }
+    ]
+  }));
+  const run = buildAutonomyRunPlan({ runType: "service_improvement_radar", primaryAgent: "projects-agent", now: input.now ?? new Date(0), candidateIds: improvements.map((item) => item.id) });
+  return { run, improvements };
+}
+
+export function runMarketOpportunityRadar(input: { signals: { title: string; summary: string; source: string; confidence: EvidenceConfidence }[]; now?: Date }) {
+  const grouped = new Map<string, { title: string; summary: string; evidence: EvidenceInput[] }>();
+  for (const signal of input.signals) {
+    const key = slugify(signal.title);
+    const existing = grouped.get(key) ?? { title: signal.title, summary: signal.summary, evidence: [] };
+    existing.evidence.push({ title: signal.title, source: signal.source, summary: signal.summary, confidence: signal.confidence });
+    grouped.set(key, existing);
+  }
+  const opportunities = Array.from(grouped.values()).map((group) => buildMarketOpportunityCandidate(group));
+  const run = buildAutonomyRunPlan({ runType: "market_opportunity_radar", primaryAgent: "research-agent", now: input.now ?? new Date(0), candidateIds: opportunities.map((item) => item.id) });
+  return { run, opportunities };
+}
+
+export function runIdeaProjectFactory(input: { candidates: (OpportunityCandidate | ImprovementCandidate)[]; now?: Date }) {
+  const ready = input.candidates.filter((candidate) => candidate.status === "ready_for_review" && !("excludedReason" in candidate && candidate.excludedReason));
+  const projectDrafts = ready.map((candidate) => buildProjectDraftFromCandidate(candidate));
+  const ownerDecisionRequests = projectDrafts.map((draft) => sanitizeOwnerDecisionInput({
+    title: draft.requiredOwnerDecision.title,
+    ownerQuestion: draft.requiredOwnerDecision.question,
+    contextSummary: `${draft.summary}\nRisk gates remain active. Project activation requires owner confirmation.`,
+    requestedByAgent: "main-agent",
+    traceId: draft.traceId,
+    gates: { public: false, external: false, paid: false, production: false, secrets: false, mainBranch: false, highCritical: false, scopeExpansion: false }
+  }));
+  const run = buildAutonomyRunPlan({ runType: "idea_project_factory", primaryAgent: "projects-agent", now: input.now ?? new Date(0), projectDraftIds: projectDrafts.map((item) => item.id), ownerDecisionRequestIds: ownerDecisionRequests.map((item, index) => item.traceId || `owner-${index}`) });
+  return { run, projectDrafts, ownerDecisionRequests };
 }
 
 export function buildOwnerDecisionPacket(input: {

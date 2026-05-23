@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
     riskLevel: ["low", "medium", "high", "critical"].includes(body.riskLevel) ? body.riskLevel : "medium",
     visibility: ["private", "internal", "external", "public"].includes(body.visibility) ? body.visibility : "internal",
     scopeApproved: body.scopeApproved !== false,
-    gates: typeof body.gates === "object" && body.gates ? body.gates : {}
+    gates: typeof body.gates === "object" && body.gates ? body.gates : {},
+    primaryAgent: typeof body.primaryAgent === "string" ? body.primaryAgent : undefined
   }));
 }

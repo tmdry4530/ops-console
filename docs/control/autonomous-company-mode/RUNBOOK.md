@@ -1,3 +1,11 @@
+---
+task_id: autonomous-company-mode-mvp
+trace_id: trace-autonomy-company-mode-mvp-20260524
+secret_safe: true
+artifact_type: implementation_evidence
+owner: main-agent
+visibility: internal
+---
 # RUNBOOK — Autonomous Company Mode
 
 Date: 2026-05-24 KST

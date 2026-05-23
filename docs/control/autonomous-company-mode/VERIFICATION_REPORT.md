@@ -1,3 +1,11 @@
+---
+task_id: autonomous-company-mode-mvp
+trace_id: trace-autonomy-company-mode-mvp-20260524
+secret_safe: true
+artifact_type: implementation_evidence
+owner: main-agent
+visibility: internal
+---
 # VERIFICATION_REPORT — Autonomous Company Mode Scoped Implementation
 
 Date: 2026-05-24 KST
@@ -47,4 +55,5 @@ Verifier: docs-agent.verifier equivalent checks with hq-agent risk-policy second
 
 - Prisma CLI auto-loaded `.env` during generate/build/validate as normal tool behavior. Secret values were not printed, copied, or stored.
 - The migration file is a work-branch draft. Applying it to live DB requires separate owner approval.
+- Runtime persistence fallback is expected in this verification environment: the local test DB does not yet contain the new Autonomy tables, so API/store tests intentionally exercise fallback draft objects after Prisma reports missing `AutonomyRun`, `OpportunityCandidate`, `ImprovementCandidate`, `ProjectDraft`, or `OwnerDecisionRequest` tables. Live DB-backed persistence remains blocked until a separately approved migration is applied.
 - Runtime smoke/deploy was intentionally not run because this approval covered scoped work-branch implementation, not production/private runtime deployment.
