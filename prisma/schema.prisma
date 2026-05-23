@@ -100,11 +100,151 @@ enum EventSeverity {
 
 enum CommandStatus {
   queued
+  waiting_approval
+  blocked
   waiting_manual_handoff
   running
   completed
   failed
   cancelled
+}
+
+enum RuntimeState {
+  idle
+  starting
+  running
+  paused
+  stopping
+  stopped
+  blocked
+  failed
+  offline
+  unknown
+}
+
+enum HeartbeatSource {
+  worker
+  cli
+  api
+  cron
+  browser
+  external
+}
+
+enum OrchestrationRunStatus {
+  queued
+  planning
+  running
+  waiting_children
+  waiting_approval
+  aggregating
+  verifying
+  completed
+  failed
+  cancelled
+}
+
+enum ControlActionStatus {
+  requested
+  queued
+  approval_required
+  approved
+  running
+  completed
+  failed
+  cancelled
+  rejected
+  manual_handoff
+  blocked
+}
+
+enum TraceSpanKind {
+  orchestration
+  task
+  command
+  approval
+  model
+  tool
+  worker
+  api
+  event
+  verifier
+}
+
+enum TraceSpanStatus {
+  pending
+  running
+  ok
+  error
+  cancelled
+  blocked
+}
+
+enum RunStepStatus {
+  pending
+  running
+  completed
+  failed
+  skipped
+  cancelled
+}
+
+enum CandidateStatus {
+  new
+  enriching
+  ready_for_review
+  converted
+  rejected
+  deferred
+}
+
+enum CandidateVisibility {
+  private
+  internal
+  external
+  public
+}
+
+enum AutonomyDecision {
+  allow
+  allow_with_verification
+  require_owner_approval
+  require_manual_handoff
+  block
+  pause
+  lower_autonomy
+}
+
+enum AutonomyRunStatus {
+  queued
+  running
+  waiting_children
+  waiting_approval
+  verifying
+  completed
+  failed
+  cancelled
+  blocked
+}
+
+enum ProjectDraftStatus {
+  drafting
+  needs_enrichment
+  needs_owner_decision
+  approved
+  rejected
+  deferred
+  activated
+}
+
+enum OwnerDecisionRequestStatus {
+  open
+  approved
+  rejected
+  needs_changes
+  deferred
+  manual_handoff
+  withdrawn
 }
 
 model User {
@@ -291,4 +431,331 @@ model Event {
   approval       Approval?      @relation(fields: [approvalId], references: [id])
   artifact       Artifact?      @relation(fields: [artifactId], references: [id])
   commandQueue   CommandQueue?  @relation(fields: [commandQueueId], references: [id])
+}
+
+model AgentRuntimeStatus {
+  id            String       @id @default(cuid())
+  agentId       String       @unique
+  state         RuntimeState @default(unknown)
+  host          String?
+  processName   String?
+  version       String?
+  currentRunId  String?
+  currentTaskId String?
+  currentStepId String?
+  heartbeatAt   DateTime?
+  lastStartedAt DateTime?
+  lastStoppedAt DateTime?
+  lastError      String?
+  metrics       Json         @default("{}")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([state])
+  @@index([heartbeatAt])
+}
+
+model AgentHeartbeat {
+  id         String          @id @default(cuid())
+  agentId    String
+  source     HeartbeatSource @default(worker)
+  status     RuntimeState    @default(unknown)
+  observedAt DateTime        @default(now())
+  latencyMs  Int?
+  queueDepth Int?
+  runId      String?
+  taskId     String?
+  traceId    String?
+  metadata   Json            @default("{}")
+
+  @@index([agentId, observedAt])
+  @@index([traceId])
+}
+
+model OrchestrationRun {
+  id            String                 @id @default(cuid())
+  traceId       String                 @unique
+  status        OrchestrationRunStatus @default(queued)
+  title         String
+  summary       String?
+  rootTaskId    String?
+  projectId     String?
+  ownerAgentId  String?
+  parentRunId   String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  failedAt      DateTime?
+  riskLevel     RiskLevel              @default(low)
+  autonomyLevel String?
+  decision      String?
+  metadata      Json                   @default("{}")
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([projectId, status])
+  @@index([ownerAgentId, status])
+}
+
+model ControlAction {
+  id             String              @id @default(cuid())
+  actionType     String
+  status         ControlActionStatus @default(requested)
+  riskLevel      RiskLevel           @default(low)
+  targetAgentId  String?
+  runId          String?
+  taskId         String?
+  commandQueueId String?
+  approvalId     String?
+  requestedBy    String?
+  reason         String?
+  scopeLimit     String?
+  payload        Json                @default("{}")
+  result         Json?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@index([targetAgentId, status])
+  @@index([runId, status])
+  @@index([commandQueueId])
+  @@index([approvalId])
+}
+
+model TraceSpan {
+  id             String          @id @default(cuid())
+  traceId        String
+  runId          String?
+  parentSpanId   String?
+  taskId         String?
+  commandQueueId String?
+  eventId        String?
+  kind           TraceSpanKind
+  name           String
+  status         TraceSpanStatus @default(pending)
+  startedAt      DateTime?
+  endedAt        DateTime?
+  durationMs     Int?
+  attributes     Json            @default("{}")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([traceId, startedAt])
+  @@index([runId, startedAt])
+  @@index([parentSpanId])
+  @@index([taskId])
+}
+
+model RunStep {
+  id          String        @id @default(cuid())
+  runId       String
+  taskId      String?
+  agentId     String?
+  spanId      String?
+  sequence    Int
+  name        String
+  status      RunStepStatus @default(pending)
+  input       Json          @default("{}")
+  output      Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([runId, sequence])
+  @@index([taskId, status])
+  @@index([agentId, status])
+}
+
+model ModelCall {
+  id           String          @id @default(cuid())
+  spanId       String?
+  runId        String?
+  taskId       String?
+  model        String
+  status       TraceSpanStatus @default(ok)
+  inputTokens  Int             @default(0)
+  outputTokens Int             @default(0)
+  costUsd      Float           @default(0)
+  latencyMs    Int?
+  errorClass   String?
+  metadata     Json            @default("{}")
+  createdAt    DateTime        @default(now())
+
+  @@index([runId, createdAt])
+  @@index([taskId, createdAt])
+  @@index([spanId])
+}
+
+model ToolCall {
+  id         String          @id @default(cuid())
+  spanId     String?
+  runId      String?
+  taskId     String?
+  toolName   String
+  status     TraceSpanStatus @default(ok)
+  durationMs Int?
+  exitCode   Int?
+  errorClass String?
+  metadata   Json            @default("{}")
+  createdAt  DateTime        @default(now())
+
+  @@index([runId, createdAt])
+  @@index([taskId, createdAt])
+  @@index([spanId])
+}
+
+model AutonomyPolicy {
+  id                      String           @id @default(cuid())
+  scopeKey                String           @unique
+  maxAutonomyLevel        String           @default("L5")
+  emergencyState          String           @default("normal")
+  allowedActions          Json             @default("[]")
+  approvalRequiredActions Json             @default("[]")
+  blockedActions          Json             @default("[]")
+  concurrencyLimit        Int              @default(1)
+  budgetLimit             Json             @default("{}")
+  riskRules               Json             @default("[]")
+  ownerApprovalId         String?
+  metadata                Json             @default("{}")
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+
+  @@index([emergencyState])
+}
+
+model AutonomyRun {
+  id                      String            @id @default(cuid())
+  runType                 String
+  status                  AutonomyRunStatus @default(queued)
+  trigger                 Json              @default("{}")
+  policyId                String?
+  decision                AutonomyDecision  @default(allow)
+  primaryAgent            String
+  childRunIds             Json              @default("[]")
+  candidateIds            Json              @default("[]")
+  projectDraftIds         Json              @default("[]")
+  ownerDecisionRequestIds Json              @default("[]")
+  startedAt               DateTime?
+  completedAt             DateTime?
+  eventIds                Json              @default("[]")
+  traceId                 String            @unique
+  artifactIds             Json              @default("[]")
+  verificationIds         Json              @default("[]")
+  metrics                 Json              @default("{}")
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([runType, status])
+  @@index([primaryAgent, status])
+}
+
+model OpportunityCandidate {
+  id                 String              @id @default(cuid())
+  title              String
+  status             CandidateStatus     @default(new)
+  source             Json                @default("{}")
+  summary            String
+  customerPain       String?
+  proposedAngle      String?
+  marketSignals      Json                @default("[]")
+  competitorSignals  Json                @default("[]")
+  confidence         String              @default("low")
+  score              Json                @default("{}")
+  riskLevel          RiskLevel           @default(medium)
+  visibility         CandidateVisibility @default(internal)
+  excludedReason     String?
+  projectDraftId     String?
+  eventIds           Json                @default("[]")
+  traceId            String              @unique
+  artifactIds        Json                @default("[]")
+  verificationIds    Json                @default("[]")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([riskLevel, status])
+}
+
+model ImprovementCandidate {
+  id              String              @id @default(cuid())
+  title           String
+  status          CandidateStatus     @default(new)
+  area            String
+  detectedBy      String
+  signalRefs      Json                @default("[]")
+  problem         String
+  impact          Json                @default("{}")
+  proposedFix     String
+  autonomyFit     String              @default("auto_prepare_only")
+  riskLevel       RiskLevel           @default(medium)
+  visibility      CandidateVisibility @default(internal)
+  taskId          String?
+  projectDraftId  String?
+  eventIds        Json                @default("[]")
+  traceId         String              @unique
+  artifactIds     Json                @default("[]")
+  verificationIds Json                @default("[]")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([area, status])
+  @@index([riskLevel, status])
+}
+
+model ProjectDraft {
+  id                       String             @id @default(cuid())
+  title                    String
+  sourceCandidateIds       Json               @default("[]")
+  status                   ProjectDraftStatus @default(drafting)
+  summary                  String
+  problem                  String?
+  proposedOutcome          String?
+  scope                    Json               @default("{}")
+  classification           Json               @default("{}")
+  successCriteria          Json               @default("[]")
+  milestones               Json               @default("[]")
+  tasks                    Json               @default("[]")
+  dependencies             Json               @default("[]")
+  blockers                 Json               @default("[]")
+  requiredOwnerDecisionIds Json               @default("[]")
+  artifactIds              Json               @default("[]")
+  eventIds                 Json               @default("[]")
+  traceId                  String             @unique
+  verificationIds          Json               @default("[]")
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+model OwnerDecisionRequest {
+  id                 String                     @id @default(cuid())
+  title              String
+  requestedByAgent   String
+  decisionType       String
+  urgency            String                     @default("normal")
+  riskLevel          RiskLevel                  @default(medium)
+  ownerQuestion      String
+  contextSummary     String
+  recommendation     Json?
+  options            Json                       @default("[]")
+  impact             Json                       @default("{}")
+  gates              Json                       @default("{}")
+  evidenceRefs       Json                       @default("[]")
+  allowedResponses   Json                       @default("[]")
+  status             OwnerDecisionRequestStatus @default(open)
+  approvalId         String?
+  traceId            String                     @unique
+  eventIds           Json                       @default("[]")
+  artifactIds        Json                       @default("[]")
+  verificationIds    Json                       @default("[]")
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  @@index([status, updatedAt])
+  @@index([riskLevel, status])
+  @@index([requestedByAgent, status])
 }

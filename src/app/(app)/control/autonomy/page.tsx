@@ -1,0 +1,17 @@
+import Link from "next/link";
+import { AutoRefresh } from "@/components/auto-refresh";
+import { RiskBadge } from "@/components/risk-badge";
+import { StatusBadge } from "@/components/status-badge";
+import { formatTimeKo } from "@/lib/korean-labels";
+import { getAutonomyControlSummary } from "@/server/autonomous-company-mode-store";
+
+export const dynamic = "force-dynamic";
+
+export default async function AutonomyControlPage() {
+  const autonomy = await getAutonomyControlSummary();
+  return <><AutoRefresh intervalMs={10000} /><div className="control-shell">
+    <section className="control-hero"><div><div className="eyebrow">Control · 자율 운영</div><h1>회사 자율성 제어</h1><p>L5 Fully Autonomous Within Scope. High/Critical·public·external·paid·secret·production·main branch는 오너 승인으로 잠근다.</p></div><div className="control-hero-actions"><div className="live-pill"><span /> Live · {formatTimeKo(autonomy.generatedAt)}</div><Link href={"/decisions/owner-inbox" as never} className="btn warn sm">오너함</Link><Link href={"/observe/autonomy-runs" as never} className="btn ghost sm">실행 기록</Link></div></section>
+    <section className="control-metrics"><div className="control-metric"><span>현재 모드</span><strong>{autonomy.currentMode}</strong><em>{autonomy.emergencyState}</em></div><div className="control-metric"><span>Active runs</span><strong>{autonomy.metrics.activeRuns}</strong><em>policy checked</em></div><div className="control-metric alert"><span>Gated</span><strong>{autonomy.metrics.gated}</strong><em>approval/manual/block</em></div><div className="control-metric alert"><span>오너 결정</span><strong>{autonomy.metrics.ownerInbox}</strong><em>owner inbox</em></div></section>
+    <section className="control-grid"><div className="card control-span-8"><div className="card-head"><div className="title">Autonomy Level Controller</div><div className="sub">· raising autonomy requires owner approval</div></div><div className="card-body"><div className="autonomy-levels autonomy-level-rail">{["L0 수동","L1 제안","L2 감독","L3 작업","L4 프로젝트","L5 범위 내 완전자율"].map((level)=><span key={level} className={`tag autonomy-level-chip ${level.startsWith(autonomy.currentMode) ? "selected" : ""}`}>{level}</span>)}</div><p className="tiny">Controls: 일시 정지 · lower autonomy · emergency stop. Resume/raise는 owner approval 필요.</p></div></div><div className="card control-span-4"><div className="card-head"><div className="title">Policy Matrix</div></div><div className="card-body control-approval-list">{autonomy.policyMatrix.map((row)=><div className="approval-row" key={row.risk}><RiskBadge risk={row.risk as never} /><div><strong>{row.decision}</strong><span>{row.detail}</span></div></div>)}</div></div><div className="card control-span-12"><div className="card-head"><div className="title">Scheduler Draft</div><div className="sub">· bounded jobs</div></div><div className="card-body control-approval-list">{autonomy.scheduler.jobs.map((job)=><div className="approval-row" key={job.type}><div><strong>{job.type}</strong><span>{job.primaryAgent} · {job.cadence} · verifier {job.verifier}</span></div><StatusBadge label="draft" kind="info" /></div>)}</div></div></section>
+  </div></>;
+}
