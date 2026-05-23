@@ -74,6 +74,155 @@ export function evaluateAutonomyPolicy(input: AutonomyPolicyInput): AutonomyPoli
   return { decision: "allow", riskLevel: input.riskLevel, requiresOwnerApproval: false, verifierRequired: false, hqReviewRequired: false, reasons: ["low_internal_allowed"] };
 }
 
+export type AuthorityMode = "enabled_persistent_pilot" | "enabled_full_authority_within_constitution";
+export type ConstitutionalProtocol =
+  | "safe_internal_protocol"
+  | "deploy_protocol"
+  | "db_migration_protocol"
+  | "external_publishing_protocol"
+  | "paid_action_protocol"
+  | "live_trading_protocol"
+  | "main_branch_merge_protocol"
+  | "dependency_upgrade_protocol"
+  | "owner_exception_protocol"
+  | "blocked_non_delegable_protocol";
+
+export type ProtocolEvidence = Partial<Record<"testsPassed" | "rollbackPlan" | "verifierPassed" | "hqProtocolGatePassed" | "auditLinked" | "budgetWithinLimit" | "dryRunPassed" | "backupVerified" | "legalPolicyChecked" | "killSwitchReady", boolean>>;
+
+export type ConstitutionalActionInput = AutonomyPolicyInput & {
+  authorityMode?: AuthorityMode;
+  constitutionApproved?: boolean;
+  protocolEvidence?: ProtocolEvidence;
+  runtimeActivationApproved?: boolean;
+};
+
+export type ConstitutionalActionResult = AutonomyPolicyResult & {
+  protocol: ConstitutionalProtocol;
+  escalation: "none" | "protocol_gate" | "owner_exception" | "blocked_non_delegable";
+  afterActionRequired: boolean;
+  missingEvidence: string[];
+};
+
+const NON_DELEGABLE_ACTION_RE = /(modify|edit|change|replace|delete)[\s_-]*(company[\s_-]*)?(constitution|standing[\s_-]*rules|blast[\s_-]*radius)|expand[\s_-]*(own[\s_-]*)?authority|self[\s_-]*authority|approval[\s_-]*bypass|unauthorized|bypass[\s_-]*(law|legal|terms|platform[\s_-]*policy)|platform[\s_-]*policy[\s_-]*bypass/i;
+const RAW_SECRET_ACTION_RE = /(read|show|print|log|dump|export|store|access|use|load|copy|decrypt|exfiltrate)[\s_-]*(raw[\s_-]*)?(secret|token|cookie|browser[\s_-]*storage|private[\s_-]*key|database[\s_-]*url|db[\s_-]*url|credential)|(secret|token|cookie|browser[\s_-]*storage|private[\s_-]*key|database[\s_-]*url|db[\s_-]*url|credential)[\s_-]*(read|show|print|log|dump|export|store|access|use|load|copy|decrypt|exfiltrate)|raw[\s_-]*(secret|token|cookie|private[\s_-]*key)/i;
+const OWNER_EXCEPTION_ACTION_RE = /(env|config|credential)[\s_-]*(change|update|mutation|write|edit|set)|runtime[\s_-]*(config|env|credential)|service[\s_-]*registration|project[\s_-]*activation|product[\s_-]*activation|mvp[\s_-]*build[\s_-]*start/i;
+const AUDIT_TAMPER_RE = /(delete|remove|modify|tamper|rewrite)[\s_-]*(audit|event|trace|artifact|verification|log)/i;
+
+function classifyConstitutionalProtocol(actionType: string, gates: PolicyGates = {}): ConstitutionalProtocol {
+  if (/(db|database)[\s_-]*migration|migrate[\s_-]*db|schema[\s_-]*migration/i.test(actionType)) return "db_migration_protocol";
+  if (/external[\s_-]*(send|publish|post)|publish[\s_-]*external|public[\s_-]*publish|social[\s_-]*post/i.test(actionType) || gates.external || gates.public) return "external_publishing_protocol";
+  if (/paid|billing|spend|purchase|payment/i.test(actionType) || gates.paid) return "paid_action_protocol";
+  if (/live[\s_-]*(trading|trade)|order[\s_-]*execution|place[\s_-]*order|wallet|signature/i.test(actionType) || gates.liveTrading || gates.orderExecution) return "live_trading_protocol";
+  if (/main[\s_-]*(branch|merge)|merge[\s_-]*to[\s_-]*main/i.test(actionType) || gates.mainBranch) return "main_branch_merge_protocol";
+  if (/(major[\s_-]*)?dependency[\s_-]*(upgrade|update)|package[\s_-]*upgrade/i.test(actionType)) return "dependency_upgrade_protocol";
+  if (/deploy|production|public[\s_-]*release|release/i.test(actionType) || gates.production) return "deploy_protocol";
+  return "safe_internal_protocol";
+}
+
+function requiredEvidenceForProtocol(protocol: ConstitutionalProtocol): (keyof ProtocolEvidence)[] {
+  const common: (keyof ProtocolEvidence)[] = ["testsPassed", "rollbackPlan", "verifierPassed", "hqProtocolGatePassed", "auditLinked"];
+  if (protocol === "db_migration_protocol") return [...common, "dryRunPassed"];
+  if (protocol === "external_publishing_protocol") return [...common, "dryRunPassed", "legalPolicyChecked"];
+  if (protocol === "paid_action_protocol") return [...common, "budgetWithinLimit", "killSwitchReady"];
+  if (protocol === "live_trading_protocol") return [...common, "budgetWithinLimit", "dryRunPassed", "killSwitchReady"];
+  return protocol === "safe_internal_protocol" ? ["auditLinked"] : common;
+}
+
+export function buildFullAuthorityModePolicy(input: { now: Date }) {
+  return {
+    mode: "enabled_full_authority_within_constitution" as const,
+    status: "implemented_not_active" as const,
+    generatedAt: input.now.toISOString(),
+    defaultDecision: "allow_with_protocol_gate" as const,
+    ownerInboxMode: "exception_only" as const,
+    hqAgentRole: "protocol_gate_and_exception_escalation" as const,
+    docsAgentRole: "independent_verifier_before_completed" as const,
+    blastRadius: {
+      defaultDenyWhenConstitutionMissing: true,
+      maxConcurrentAutonomyRuns: 2,
+      maxAutoProjectDraftsPerDay: 3,
+      maxAutoDevPatchesPerDay: 1,
+      maxMediumRiskAutoActionsPerDay: 3,
+      highCriticalAutoExecutionWithoutProtocol: 0,
+      forbiddenWithoutOwnerApproval: [
+        "constitution_or_authority_change",
+        "raw_secret_exposure_or_storage",
+        "credential_env_config_change",
+        "audit_trace_artifact_verification_deletion",
+        "unauthorized_third_party_access",
+        "law_terms_platform_policy_bypass"
+      ]
+    },
+    protocols: [
+      "deploy_protocol",
+      "db_migration_protocol",
+      "external_publishing_protocol",
+      "paid_action_protocol",
+      "live_trading_protocol",
+      "main_branch_merge_protocol",
+      "dependency_upgrade_protocol"
+    ] as ConstitutionalProtocol[]
+  };
+}
+
+export function evaluateConstitutionalActionProtocol(input: ConstitutionalActionInput): ConstitutionalActionResult {
+  const gates = input.gates ?? {};
+  const protocol = classifyConstitutionalProtocol(input.actionType, gates);
+  const reasons = gateReasons(gates);
+  const nonDelegable = NON_DELEGABLE_ACTION_RE.test(input.actionType);
+  const rawSecret = RAW_SECRET_ACTION_RE.test(input.actionType) || gates.secrets === true;
+  const ownerException = OWNER_EXCEPTION_ACTION_RE.test(input.actionType) || gates.productActivation || gates.authCryptoAlphaXcdp || gates.scopeExpansion;
+  const auditTamper = AUDIT_TAMPER_RE.test(input.actionType);
+  const agentBoundaryViolation = violatesAgentBoundary(input.primaryAgent, input.actionType, input.visibility, gates);
+
+  if (input.authorityMode !== "enabled_full_authority_within_constitution") {
+    const pilot = evaluateAutonomyPolicy(input);
+    return { ...pilot, protocol: "owner_exception_protocol", escalation: pilot.requiresOwnerApproval ? "owner_exception" : "none", afterActionRequired: pilot.decision === "allow_with_verification", missingEvidence: [] };
+  }
+  if (!input.constitutionApproved) {
+    return { decision: "block", riskLevel: "critical", requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, protocol: "blocked_non_delegable_protocol", escalation: "blocked_non_delegable", afterActionRequired: true, missingEvidence: ["constitutionApproved"], reasons: [...reasons, "constitution_not_approved_default_deny"] };
+  }
+  if (nonDelegable || rawSecret || auditTamper || agentBoundaryViolation) {
+    const reason = nonDelegable ? "non_delegable_owner_authority" : rawSecret ? "raw_secret_action_blocked" : auditTamper ? "audit_trace_artifact_tamper_blocked" : agentBoundaryViolation ?? "agent_boundary_violation";
+    return { decision: "block", riskLevel: "critical", requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, protocol: "blocked_non_delegable_protocol", escalation: "blocked_non_delegable", afterActionRequired: true, missingEvidence: [], reasons: [...reasons, reason] };
+  }
+  if (!input.scopeApproved || ownerException) {
+    return { decision: "require_owner_approval", riskLevel: input.riskLevel, requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, protocol: "owner_exception_protocol", escalation: "owner_exception", afterActionRequired: true, missingEvidence: [], reasons: [...reasons, input.scopeApproved ? "owner_exception_scope_gate" : "scope_not_approved"] };
+  }
+  if (protocol !== "safe_internal_protocol" && !input.runtimeActivationApproved) {
+    return { decision: "require_owner_approval", riskLevel: input.riskLevel, requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, protocol, escalation: "owner_exception", afterActionRequired: true, missingEvidence: ["runtimeActivationApproved"], reasons: [...reasons, "full_authority_runtime_activation_not_approved"] };
+  }
+
+  const required = requiredEvidenceForProtocol(protocol);
+  const evidence = input.protocolEvidence ?? {};
+  const missingEvidence = required.filter((key) => evidence[key] !== true).map((key) => `missing_${key}`);
+  if (missingEvidence.length > 0) {
+    return { decision: "require_owner_approval", riskLevel: input.riskLevel, requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, protocol, escalation: "owner_exception", afterActionRequired: true, missingEvidence, reasons: [...reasons, ...missingEvidence] };
+  }
+
+  if (protocol === "safe_internal_protocol" && input.riskLevel === "low") {
+    return { decision: "allow", riskLevel: input.riskLevel, requiresOwnerApproval: false, verifierRequired: false, hqReviewRequired: false, protocol, escalation: "none", afterActionRequired: true, missingEvidence: [], reasons: ["constitution_default_allow_safe_internal"] };
+  }
+  return { decision: "allow_with_verification", riskLevel: input.riskLevel, requiresOwnerApproval: false, verifierRequired: true, hqReviewRequired: protocol !== "safe_internal_protocol" || riskAtLeast(input.riskLevel, "high"), protocol, escalation: protocol === "safe_internal_protocol" ? "none" : "protocol_gate", afterActionRequired: true, missingEvidence: [], reasons: [...reasons, "constitution_default_allow_protocol_satisfied"] };
+}
+
+export function buildAfterActionReport(input: { actionType: string; decision: AutonomyDecision; protocol: ConstitutionalProtocol; traceId: string; eventIds: string[]; artifactIds: string[]; verificationIds: string[]; summary: string }) {
+  return {
+    status: "after_action_report_required" as const,
+    actionType: redactSecretLikeText(input.actionType),
+    decision: input.decision,
+    protocol: input.protocol,
+    summary: redactSecretLikeText(input.summary).slice(0, 2000),
+    links: {
+      traceId: redactSecretLikeText(input.traceId).slice(0, 160),
+      eventIds: input.eventIds.map((id) => redactSecretLikeText(id).slice(0, 160)),
+      artifactIds: input.artifactIds.map((id) => redactSecretLikeText(id).slice(0, 160)),
+      verificationIds: input.verificationIds.map((id) => redactSecretLikeText(id).slice(0, 160))
+    },
+    requiredSections: ["what_changed", "policy_decision", "protocol_evidence", "verification", "rollback_or_followup"]
+  };
+}
+
 export type EvidenceInput = { title: string; source: string; summary: string; confidence: EvidenceConfidence };
 export type EvidenceRef = EvidenceInput & { id: string; summary: string; capturedAt: string };
 
@@ -188,7 +337,7 @@ export function buildProjectDraftFromCandidate(candidate: OpportunityCandidate |
 export function buildAutonomySchedulerDraft(input: { now: Date }) {
   return {
     generatedAt: input.now.toISOString(),
-    concurrency: { globalMaxRuns: 3, perAgentMaxRuns: 1 },
+    concurrency: { globalMaxRuns: 2, perAgentMaxRuns: 1 },
     budget: { dailyCostUsd: 10, maxRunMinutes: 30 },
     guardrails: {
       highCritical: "owner approval required",
@@ -222,7 +371,7 @@ export type AutonomyRunPlan = {
 
 export function buildAutonomyRunPlan(input: { runType: string; primaryAgent: string; now: Date; riskLevel?: RiskLevel; visibility?: Visibility; scopeApproved?: boolean; gates?: PolicyGates; candidateIds?: string[]; projectDraftIds?: string[]; ownerDecisionRequestIds?: string[] }): AutonomyRunPlan {
   const slug = slugify(input.runType);
-  const stamp = input.now.toISOString().replace(/[^0-9]/g, "").slice(0, 14);
+  const stamp = input.now.toISOString().replace(/[^0-9]/g, "").slice(0, 17);
   const policy = evaluateAutonomyPolicy({ actionType: input.runType, riskLevel: input.riskLevel ?? "medium", visibility: input.visibility ?? "internal", scopeApproved: input.scopeApproved ?? true, primaryAgent: input.primaryAgent, gates: input.gates });
   const status = policy.decision === "require_owner_approval" ? "waiting_approval" : policy.decision === "block" ? "blocked" : "queued";
   return {

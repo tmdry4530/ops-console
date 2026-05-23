@@ -6,6 +6,7 @@ import {
   buildMarketOpportunityCandidate,
   buildOwnerDecisionPacket,
   buildProjectDraftFromCandidate,
+  buildFullAuthorityModePolicy,
   evaluateAutonomyPolicy,
   runIdeaProjectFactory,
   runMarketOpportunityRadar,
@@ -20,10 +21,10 @@ import {
 type DbWithAutonomy = typeof db & {
   autonomyPolicy?: { findMany: Function; create: Function; updateMany: Function };
   autonomyRun?: { findMany: Function; create: Function; updateMany: Function };
-  opportunityCandidate?: { findMany: Function; create: Function };
-  improvementCandidate?: { findMany: Function; create: Function };
-  projectDraft?: { findMany: Function; create: Function };
-  ownerDecisionRequest?: { findMany: Function; create: Function };
+  opportunityCandidate?: { findMany: Function; create: Function; upsert: Function };
+  improvementCandidate?: { findMany: Function; create: Function; upsert: Function };
+  projectDraft?: { findMany: Function; create: Function; upsert: Function };
+  ownerDecisionRequest?: { findMany: Function; create: Function; upsert: Function };
 };
 
 const adb = db as DbWithAutonomy;
@@ -35,20 +36,25 @@ function isMissingAutonomyTable(error: unknown) {
 
 export async function getAutonomyControlSummary() {
   const scheduler = buildAutonomySchedulerDraft({ now: new Date() });
+  const fullAuthorityPolicy = buildFullAuthorityModePolicy({ now: new Date() });
   const [policies, runs, ownerRequests] = await Promise.all([
     safeFind(() => adb.autonomyPolicy?.findMany({ orderBy: { updatedAt: "desc" }, take: 20 }) ?? []),
     safeFind(() => adb.autonomyRun?.findMany({ orderBy: { updatedAt: "desc" }, take: 20 }) ?? []),
     safeFind(() => adb.ownerDecisionRequest?.findMany({ where: { status: "open" }, orderBy: { updatedAt: "desc" }, take: 20 }) ?? [])
   ]);
+  const isFullAuthorityActive = policies.some((policy: any) => policy.scopeKey === "company:autonomous-company-mode:enabled_full_authority_within_constitution" && policy.metadata?.runtimeActivationApproved === true);
   return {
     generatedAt: new Date(),
     currentMode: policies[0]?.maxAutonomyLevel ?? "L5",
+    authorityMode: isFullAuthorityActive ? "enabled_full_authority_within_constitution" : "enabled_persistent_pilot",
+    fullAuthorityPolicy,
+    ownerInboxMode: fullAuthorityPolicy.ownerInboxMode,
     emergencyState: policies.find((policy: any) => policy.emergencyState !== "normal")?.emergencyState ?? "normal",
     policyMatrix: [
       { risk: "low", decision: "자동 허용", detail: "trace/event 기록" },
       { risk: "medium", decision: "검증 후 허용", detail: "docs/verifier evidence" },
-      { risk: "high", decision: "오너 승인", detail: "hq-agent secondary" },
-      { risk: "critical", decision: "차단/수동", detail: "emergency/manual handoff" }
+      { risk: "high", decision: "Full authority protocol gate", detail: "constitution + hq protocol + docs verifier" },
+      { risk: "critical", decision: "Exception-only owner inbox", detail: "non-delegable/raw-secret/authority changes blocked" }
     ],
     scheduler,
     runs,
@@ -100,7 +106,9 @@ export async function createOwnerDecisionRequest(input: { title: string; ownerQu
   const sanitized = sanitizeOwnerDecisionInput(input);
   if (!adb.ownerDecisionRequest?.create) return { fallback: true, policy, ...sanitized, riskLevel, status: "open" };
   try {
-    return await adb.ownerDecisionRequest.create({ data: { title: sanitized.title, requestedByAgent: sanitized.requestedByAgent, decisionType: "approve", urgency: riskLevel === "high" || riskLevel === "critical" ? "high" : "normal", riskLevel, ownerQuestion: sanitized.ownerQuestion, contextSummary: sanitized.contextSummary, gates: sanitized.gates, allowedResponses: ["approve", "reject", "request_changes", "manual_handoff"], traceId: sanitized.traceId, eventIds: [`event-${sanitized.traceId}`], artifactIds: [`artifact-${sanitized.traceId}`], verificationIds: [`verification-${sanitized.traceId}`] } });
+    const data = { title: sanitized.title, requestedByAgent: sanitized.requestedByAgent, decisionType: "approve", urgency: riskLevel === "high" || riskLevel === "critical" ? "high" : "normal", riskLevel, ownerQuestion: sanitized.ownerQuestion, contextSummary: sanitized.contextSummary, gates: sanitized.gates, allowedResponses: ["approve", "reject", "request_changes", "manual_handoff"], traceId: sanitized.traceId, eventIds: [`event-${sanitized.traceId}`], artifactIds: [`artifact-${sanitized.traceId}`], verificationIds: [`verification-${sanitized.traceId}`] };
+    if (adb.ownerDecisionRequest.upsert) return await adb.ownerDecisionRequest.upsert({ where: { traceId: sanitized.traceId }, create: data, update: data });
+    return await adb.ownerDecisionRequest.create({ data });
   } catch (error) {
     if (isMissingAutonomyTable(error)) return { fallback: true, policy, ...sanitized, riskLevel, status: "open" };
     throw error;
@@ -114,7 +122,7 @@ export async function createAutonomyRunDraft(input: { runType: string; primaryAg
 }
 
 export async function createServiceImprovementRadarRun(input: { services?: { name: string; area: ImprovementCandidate["area"]; symptom: string; confidence: EvidenceConfidence }[] }) {
-  const result = runServiceImprovementRadar({ services: input.services?.length ? input.services : [{ name: "Ops Console", area: "operator_ux", symptom: "Autonomous Company Mode should continuously audit operator workflows", confidence: "medium" }] });
+  const result = runServiceImprovementRadar({ now: new Date(), services: input.services?.length ? input.services : [{ name: "Ops Console", area: "operator_ux", symptom: "Autonomous Company Mode should continuously audit operator workflows", confidence: "medium" }] });
   await persistAutonomyRun(result.run);
   const improvements = [];
   for (const item of result.improvements) {
@@ -124,7 +132,7 @@ export async function createServiceImprovementRadarRun(input: { services?: { nam
 }
 
 export async function createMarketOpportunityRadarRun(input: { signals?: { title: string; summary: string; source: string; confidence: EvidenceConfidence }[] }) {
-  const result = runMarketOpportunityRadar({ signals: input.signals?.length ? input.signals : [
+  const result = runMarketOpportunityRadar({ now: new Date(), signals: input.signals?.length ? input.signals : [
     { title: "Internal operations copilot", summary: "Teams need reliable internal workflow copilots with approvals", source: "company:market-radar", confidence: "medium" },
     { title: "Internal operations copilot", summary: "Competitors emphasize governed automation and auditability", source: "company:competitor-radar", confidence: "medium" }
   ] });
@@ -138,7 +146,7 @@ export async function createMarketOpportunityRadarRun(input: { signals?: { title
 
 export async function createIdeaProjectFactoryRun(input: { candidates?: any[] }) {
   const candidates = input.candidates?.length ? input.candidates : [buildMarketOpportunityCandidate({ title: "Autonomous Company Mode", summary: "Governed internal autonomous operating loop", evidence: [{ title: "policy", source: "company:policy", summary: "owner gates active", confidence: "medium" }, { title: "ops", source: "ops-console", summary: "candidate records supported", confidence: "medium" }] })];
-  const result = runIdeaProjectFactory({ candidates });
+  const result = runIdeaProjectFactory({ candidates, now: new Date() });
   await persistAutonomyRun(result.run);
   const projectDrafts = [];
   for (const draft of result.projectDrafts) {
@@ -183,8 +191,10 @@ function autonomyRunData(plan: ReturnType<typeof buildAutonomyRunPlan>) {
 
 async function persistOpportunityCandidate(item: ReturnType<typeof buildMarketOpportunityCandidate>) {
   if (!adb.opportunityCandidate?.create) return { ...item, fallback: true };
+  const data = { id: item.id, title: item.title, status: item.status, source: { type: "market_opportunity_radar" }, summary: item.summary, marketSignals: item.evidenceRefs, competitorSignals: [], confidence: item.confidence, riskLevel: item.riskLevel, visibility: item.visibility, excludedReason: item.excludedReason, eventIds: [`event-${item.traceId}`], traceId: item.traceId, artifactIds: [`artifact-${item.traceId}`], verificationIds: [`verification-${item.traceId}`] };
   try {
-    return await adb.opportunityCandidate.create({ data: { id: item.id, title: item.title, status: item.status, source: { type: "market_opportunity_radar" }, summary: item.summary, marketSignals: item.evidenceRefs, competitorSignals: [], confidence: item.confidence, riskLevel: item.riskLevel, visibility: item.visibility, excludedReason: item.excludedReason, eventIds: [`event-${item.traceId}`], traceId: item.traceId, artifactIds: [`artifact-${item.traceId}`], verificationIds: [`verification-${item.traceId}`] } });
+    if (adb.opportunityCandidate.upsert) return await adb.opportunityCandidate.upsert({ where: { id: item.id }, create: data, update: data });
+    return await adb.opportunityCandidate.create({ data });
   } catch (error) {
     if (isMissingAutonomyTable(error)) return { ...item, fallback: true };
     throw error;
@@ -193,8 +203,10 @@ async function persistOpportunityCandidate(item: ReturnType<typeof buildMarketOp
 
 async function persistImprovementCandidate(item: ReturnType<typeof buildImprovementCandidate>) {
   if (!adb.improvementCandidate?.create) return { ...item, fallback: true };
+  const data = { id: item.id, title: item.title, status: item.status, area: item.area, detectedBy: "service_improvement_radar", signalRefs: item.evidenceRefs, problem: item.problem, impact: { internal: true }, proposedFix: `Prepare scoped ${item.area} improvement with tests and rollback`, autonomyFit: item.autonomyFit, riskLevel: item.riskLevel, visibility: item.visibility, eventIds: [`event-${item.traceId}`], traceId: item.traceId, artifactIds: [`artifact-${item.traceId}`], verificationIds: [`verification-${item.traceId}`] };
   try {
-    return await adb.improvementCandidate.create({ data: { id: item.id, title: item.title, status: item.status, area: item.area, detectedBy: "service_improvement_radar", signalRefs: item.evidenceRefs, problem: item.problem, impact: { internal: true }, proposedFix: `Prepare scoped ${item.area} improvement with tests and rollback`, autonomyFit: item.autonomyFit, riskLevel: item.riskLevel, visibility: item.visibility, eventIds: [`event-${item.traceId}`], traceId: item.traceId, artifactIds: [`artifact-${item.traceId}`], verificationIds: [`verification-${item.traceId}`] } });
+    if (adb.improvementCandidate.upsert) return await adb.improvementCandidate.upsert({ where: { id: item.id }, create: data, update: data });
+    return await adb.improvementCandidate.create({ data });
   } catch (error) {
     if (isMissingAutonomyTable(error)) return { ...item, fallback: true };
     throw error;
@@ -203,8 +215,10 @@ async function persistImprovementCandidate(item: ReturnType<typeof buildImprovem
 
 async function persistProjectDraft(draft: ReturnType<typeof buildProjectDraftFromCandidate>) {
   if (!adb.projectDraft?.create) return { ...draft, fallback: true };
+  const data = { id: draft.id, title: draft.title, sourceCandidateIds: [draft.sourceCandidateId], status: draft.status, summary: draft.summary, problem: draft.summary, proposedOutcome: "Owner-approved internal project activation", scope: { publicDeploy: false, externalSend: false, secretAccess: false }, classification: { risk: "medium", visibility: "internal" }, successCriteria: draft.successCriteria, milestones: [], tasks: [], dependencies: [], blockers: [], requiredOwnerDecisionIds: [], artifactIds: [`artifact-${draft.traceId}`], eventIds: [`event-${draft.traceId}`], traceId: draft.traceId, verificationIds: [`verification-${draft.traceId}`] };
   try {
-    return await adb.projectDraft.create({ data: { id: draft.id, title: draft.title, sourceCandidateIds: [draft.sourceCandidateId], status: draft.status, summary: draft.summary, problem: draft.summary, proposedOutcome: "Owner-approved internal project activation", scope: { publicDeploy: false, externalSend: false, secretAccess: false }, classification: { risk: "medium", visibility: "internal" }, successCriteria: draft.successCriteria, milestones: [], tasks: [], dependencies: [], blockers: [], requiredOwnerDecisionIds: [], artifactIds: [`artifact-${draft.traceId}`], eventIds: [`event-${draft.traceId}`], traceId: draft.traceId, verificationIds: [`verification-${draft.traceId}`] } });
+    if (adb.projectDraft.upsert) return await adb.projectDraft.upsert({ where: { id: draft.id }, create: data, update: data });
+    return await adb.projectDraft.create({ data });
   } catch (error) {
     if (isMissingAutonomyTable(error)) return { ...draft, fallback: true };
     throw error;

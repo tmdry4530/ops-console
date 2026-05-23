@@ -12,7 +12,10 @@ import {
   runMarketOpportunityRadar,
   runServiceImprovementRadar,
   sanitizeEvidencePack,
-  sanitizeOwnerDecisionInput
+  sanitizeOwnerDecisionInput,
+  buildAfterActionReport,
+  buildFullAuthorityModePolicy,
+  evaluateConstitutionalActionProtocol
 } from "./autonomous-company-mode";
 
 describe("evaluateAutonomyPolicy", () => {
@@ -58,6 +61,125 @@ describe("evaluateAutonomyPolicy", () => {
     const plan = buildAutonomyRunPlan({ runType: "product_activation", primaryAgent: "projects-agent", now: new Date("2026-05-24T00:00:00Z"), gates: { productActivation: true } });
     expect(plan.status).toBe("waiting_approval");
     expect(plan.decision).toBe("require_owner_approval");
+  });
+});
+
+describe("full authority within constitution policy", () => {
+  it("builds an implementation-ready policy that remains inactive until separate activation", () => {
+    const policy = buildFullAuthorityModePolicy({ now: new Date("2026-05-24T00:00:00Z") });
+    expect(policy.mode).toBe("enabled_full_authority_within_constitution");
+    expect(policy.status).toBe("implemented_not_active");
+    expect(policy.defaultDecision).toBe("allow_with_protocol_gate");
+    expect(policy.ownerInboxMode).toBe("exception_only");
+    expect(policy.blastRadius.defaultDenyWhenConstitutionMissing).toBe(true);
+    expect(policy.blastRadius.forbiddenWithoutOwnerApproval).toContain("constitution_or_authority_change");
+  });
+
+  it("uses default-allow protocol gates only when constitution approval and required evidence exist", () => {
+    const allowed = evaluateConstitutionalActionProtocol({
+      authorityMode: "enabled_full_authority_within_constitution",
+      constitutionApproved: true,
+      actionType: "production_deploy",
+      riskLevel: "high",
+      visibility: "public",
+      scopeApproved: true,
+      protocolEvidence: { testsPassed: true, rollbackPlan: true, verifierPassed: true, hqProtocolGatePassed: true, auditLinked: true },
+      runtimeActivationApproved: true
+    });
+    expect(allowed).toMatchObject({ decision: "allow_with_verification", protocol: "deploy_protocol", requiresOwnerApproval: false, verifierRequired: true, hqReviewRequired: true });
+
+    const missingEvidence = evaluateConstitutionalActionProtocol({
+      authorityMode: "enabled_full_authority_within_constitution",
+      constitutionApproved: true,
+      actionType: "production_deploy",
+      riskLevel: "high",
+      visibility: "public",
+      scopeApproved: true,
+      protocolEvidence: { testsPassed: true },
+      runtimeActivationApproved: true
+    });
+    expect(missingEvidence).toMatchObject({ decision: "require_owner_approval", protocol: "deploy_protocol", escalation: "owner_exception" });
+    expect(missingEvidence.reasons).toEqual(expect.arrayContaining(["missing_rollbackPlan", "missing_verifierPassed", "missing_hqProtocolGatePassed", "missing_auditLinked"]));
+  });
+
+  it("keeps non-delegable and secret raw-value actions blocked even under full authority", () => {
+    for (const actionType of ["modify_company_constitution", "expand_own_authority", "read raw secret token", "browser storage export", "bypass platform policy"]) {
+      const result = evaluateConstitutionalActionProtocol({
+        authorityMode: "enabled_full_authority_within_constitution",
+        constitutionApproved: true,
+        actionType,
+        riskLevel: "critical",
+        visibility: "internal",
+        scopeApproved: true
+      });
+      expect(result.decision).toBe("block");
+      expect(result.requiresOwnerApproval).toBe(true);
+      expect(result.reasons.join(" ")).toMatch(/non_delegable|secret|policy/);
+    }
+  });
+
+  it("requires separate runtime activation before sensitive full-authority protocols can auto-execute", () => {
+    const result = evaluateConstitutionalActionProtocol({
+      authorityMode: "enabled_full_authority_within_constitution",
+      constitutionApproved: true,
+      actionType: "db_migration",
+      riskLevel: "high",
+      visibility: "internal",
+      scopeApproved: true,
+      protocolEvidence: { testsPassed: true, rollbackPlan: true, verifierPassed: true, hqProtocolGatePassed: true, auditLinked: true, dryRunPassed: true }
+    });
+    expect(result).toMatchObject({ decision: "require_owner_approval", protocol: "db_migration_protocol", requiresOwnerApproval: true });
+    expect(result.reasons).toContain("full_authority_runtime_activation_not_approved");
+  });
+
+  it("routes secret/env/config/audit tamper gates to block or owner exception under full authority", () => {
+    expect(evaluateConstitutionalActionProtocol({ authorityMode: "enabled_full_authority_within_constitution", constitutionApproved: true, actionType: "private key access", riskLevel: "critical", visibility: "internal", scopeApproved: true }).decision).toBe("block");
+    expect(evaluateConstitutionalActionProtocol({ authorityMode: "enabled_full_authority_within_constitution", constitutionApproved: true, actionType: "safe action", riskLevel: "medium", visibility: "internal", scopeApproved: true, gates: { secrets: true } }).decision).toBe("block");
+    expect(evaluateConstitutionalActionProtocol({ authorityMode: "enabled_full_authority_within_constitution", constitutionApproved: true, actionType: "runtime config change", riskLevel: "high", visibility: "internal", scopeApproved: true }).decision).toBe("require_owner_approval");
+    expect(evaluateConstitutionalActionProtocol({ authorityMode: "enabled_full_authority_within_constitution", constitutionApproved: true, actionType: "delete audit event", riskLevel: "critical", visibility: "internal", scopeApproved: true }).decision).toBe("block");
+  });
+
+  it("classifies DB migration external publishing paid trading main merge and dependency upgrade protocols after separate activation approval", () => {
+    const cases = [
+      ["db_migration", "db_migration_protocol"],
+      ["external_publish", "external_publishing_protocol"],
+      ["paid_api_call", "paid_action_protocol"],
+      ["live_trading_order_execution", "live_trading_protocol"],
+      ["main_branch_merge", "main_branch_merge_protocol"],
+      ["major_dependency_upgrade", "dependency_upgrade_protocol"]
+    ] as const;
+    for (const [actionType, protocol] of cases) {
+      const result = evaluateConstitutionalActionProtocol({
+        authorityMode: "enabled_full_authority_within_constitution",
+        constitutionApproved: true,
+        actionType,
+        riskLevel: "high",
+        visibility: "internal",
+        scopeApproved: true,
+        protocolEvidence: { testsPassed: true, rollbackPlan: true, verifierPassed: true, hqProtocolGatePassed: true, auditLinked: true, budgetWithinLimit: true, dryRunPassed: true, backupVerified: true, legalPolicyChecked: true, killSwitchReady: true },
+        runtimeActivationApproved: true
+      });
+      expect(result.protocol).toBe(protocol);
+      expect(result.requiresOwnerApproval).toBe(false);
+      expect(result.afterActionRequired).toBe(true);
+    }
+  });
+
+  it("creates secret-safe after-action reports with trace artifact verification linkage", () => {
+    const report = buildAfterActionReport({
+      actionType: "external_publish_dry_run",
+      decision: "allow_with_verification",
+      protocol: "external_publishing_protocol",
+      traceId: "trace-full-authority-test",
+      eventIds: ["event-1"],
+      artifactIds: ["artifact-1"],
+      verificationIds: ["verification-1"],
+      summary: "Dry run completed; token=super-secret-value should redact"
+    });
+    expect(report.status).toBe("after_action_report_required");
+    expect(report.summary).toContain("[REDACTED_SECRET_LIKE]");
+    expect(report.links.traceId).toBe("trace-full-authority-test");
+    expect(report.links.artifactIds).toContain("artifact-1");
   });
 });
 
