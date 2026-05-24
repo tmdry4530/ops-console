@@ -58,6 +58,10 @@ export default async function AutonomyControlPage() {
                 <form method="post" action="/api/ops/autonomy/control-actions"><input type="hidden" name="action" value="lower_autonomy" /><input type="hidden" name="requestedLevel" value="L3" /><button className="btn ghost sm">Lower to L3</button></form>
                 <form method="post" action="/api/ops/autonomy/control-actions"><input type="hidden" name="action" value="emergency_stop" /><button className="btn danger sm">Emergency Stop</button></form>
               </div>
+              <div className="control-hero-actions">
+                <Link href={"/projects/opportunities" as never} className="btn ghost sm">Opportunity queue</Link>
+                <Link href={"/projects/improvements" as never} className="btn ghost sm">Improvement queue</Link>
+              </div>
             </div>
           </div>
 
