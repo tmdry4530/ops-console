@@ -20,7 +20,9 @@ export default async function AutonomyControlPage() {
             <div className="eyebrow">Control · 자율 운영</div>
             <h1>회사 자율성 제어</h1>
             <p>
-              Persistent pilot is active. Full Authority Within Constitution implementation is present but not activated until the owner explicitly approves activation.
+              {fullAuthorityActive
+                ? "Full Authority Within Constitution is active. Constitution-compliant actions run by protocol gate; owner inbox is exception-only."
+                : "Persistent pilot is active. Full Authority Within Constitution implementation is present but not activated until the owner explicitly approves activation."}
             </p>
           </div>
           <div className="control-hero-actions">
@@ -33,7 +35,7 @@ export default async function AutonomyControlPage() {
         <section className="control-metrics">
           <div className="control-metric"><span>현재 레벨</span><strong>{autonomy.currentMode}</strong><em>{autonomy.emergencyState}</em></div>
           <div className="control-metric"><span>Authority mode</span><strong>{fullAuthorityActive ? "FULL" : "PILOT"}</strong><em>{autonomy.authorityMode}</em></div>
-          <div className="control-metric alert"><span>Full authority</span><strong>{fullAuthority.status}</strong><em>activation separate approval required</em></div>
+          <div className="control-metric alert"><span>Full authority</span><strong>{fullAuthority.status}</strong><em>{fullAuthorityActive ? "standing authority granted" : "activation separate approval required"}</em></div>
           <div className="control-metric alert"><span>오너 결정</span><strong>{autonomy.metrics.ownerInbox}</strong><em>{autonomy.ownerInboxMode}</em></div>
         </section>
 
@@ -41,7 +43,7 @@ export default async function AutonomyControlPage() {
           <div className="card control-span-8">
             <div className="card-head">
               <div className="title">Full Authority Within Constitution Controls</div>
-              <div className="sub">· implemented controls · not runtime activation</div>
+              <div className="sub">· {fullAuthorityActive ? "runtime active · protocol-gated" : "implemented controls · not runtime activation"}</div>
             </div>
             <div className="card-body">
               <div className="autonomy-levels autonomy-level-rail">
@@ -51,7 +53,9 @@ export default async function AutonomyControlPage() {
                 <span className="tag autonomy-level-chip">Verifier · {fullAuthority.docsAgentRole}</span>
               </div>
               <p className="tiny">
-                Emergency controls are always executable downward: pause, lower autonomy, emergency stop. Resume/raise/full-authority activation remains owner-confirmed.
+                {fullAuthorityActive
+                  ? "Emergency controls remain always executable downward: pause, lower autonomy, emergency stop. Resume/raise after emergency stop stays owner-exception."
+                  : "Emergency controls are always executable downward: pause, lower autonomy, emergency stop. Resume/raise/full-authority activation remains owner-confirmed."}
               </p>
               <div className="control-hero-actions">
                 <form method="post" action="/api/ops/autonomy/control-actions"><input type="hidden" name="action" value="pause" /><button className="btn ghost sm">일시 정지</button></form>

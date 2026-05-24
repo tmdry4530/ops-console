@@ -36,13 +36,29 @@ function isMissingAutonomyTable(error: unknown) {
 
 export async function getAutonomyControlSummary() {
   const scheduler = buildAutonomySchedulerDraft({ now: new Date() });
-  const fullAuthorityPolicy = buildFullAuthorityModePolicy({ now: new Date() });
+  const fullAuthorityPolicyDraft = buildFullAuthorityModePolicy({ now: new Date() });
   const [policies, runs, ownerRequests] = await Promise.all([
     safeFind(() => adb.autonomyPolicy?.findMany({ orderBy: { updatedAt: "desc" }, take: 20 }) ?? []),
     safeFind(() => adb.autonomyRun?.findMany({ orderBy: { updatedAt: "desc" }, take: 20 }) ?? []),
     safeFind(() => adb.ownerDecisionRequest?.findMany({ where: { status: "open" }, orderBy: { updatedAt: "desc" }, take: 20 }) ?? [])
   ]);
-  const isFullAuthorityActive = policies.some((policy: any) => policy.scopeKey === "company:autonomous-company-mode:enabled_full_authority_within_constitution" && policy.metadata?.runtimeActivationApproved === true);
+  const activeFullAuthorityPolicy = policies.find((policy: any) => policy.scopeKey === "company:autonomous-company-mode:enabled_full_authority_within_constitution" && policy.metadata?.runtimeActivationApproved === true);
+  const activeMetadata = (activeFullAuthorityPolicy?.metadata ?? {}) as Record<string, any>;
+  const limits = activeMetadata.limits ?? {};
+  const isFullAuthorityActive = Boolean(activeFullAuthorityPolicy);
+  const fullAuthorityPolicy = isFullAuthorityActive ? {
+    ...fullAuthorityPolicyDraft,
+    status: "active" as const,
+    generatedAt: activeFullAuthorityPolicy?.updatedAt?.toISOString?.() ?? fullAuthorityPolicyDraft.generatedAt,
+    blastRadius: {
+      ...fullAuthorityPolicyDraft.blastRadius,
+      maxConcurrentAutonomyRuns: limits.maxConcurrentAutonomyRuns ?? fullAuthorityPolicyDraft.blastRadius.maxConcurrentAutonomyRuns,
+      maxAutoProjectDraftsPerDay: limits.maxAutoCreatedProjectDraftsPerDay ?? fullAuthorityPolicyDraft.blastRadius.maxAutoProjectDraftsPerDay,
+      maxAutoDevPatchesPerDay: limits.maxDailyDevPatches ?? fullAuthorityPolicyDraft.blastRadius.maxAutoDevPatchesPerDay,
+      maxDailyDeploys: limits.maxDailyDeploys,
+      maxDailyExternalSends: limits.maxDailyExternalSends
+    }
+  } : fullAuthorityPolicyDraft;
   return {
     generatedAt: new Date(),
     currentMode: policies[0]?.maxAutonomyLevel ?? "L5",
