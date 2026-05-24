@@ -42,6 +42,8 @@ describe("hermes company execution bridge", () => {
     expect(hermesReportPathForTask(designTask, "/Users/domclaw/dom-company")).toBe("/Users/domclaw/dom-company/design/ops-console-runs/task-design-1.md");
     expect(hermesPromptPathForTask(designTask, "/Users/domclaw/dom-company")).toBe("/Users/domclaw/dom-company/projects/task-cards/ops-console-task-design-1.md");
     expect(hermesBridgeDecision(designTask, { OPS_AGENT_HERMES_EXEC_ENABLED: "true" })).toMatchObject({ enabled: true, reason: "enabled" });
+    expect(hermesBridgeDecision({ ...task, agent: { id: "agent_hq", slug: "hq-agent", name: "HQ Agent" } }, { OPS_AGENT_HERMES_EXEC_ENABLED: "true" })).toMatchObject({ enabled: false, reason: "disabled" });
+    expect(hermesBridgeDecision({ ...task, agent: { id: "agent_main", slug: "main-agent", name: "Main Agent" } }, { OPS_AGENT_HERMES_EXEC_ENABLED: "true" })).toMatchObject({ enabled: false, reason: "disabled" });
     expect(hermesBridgeDecision({ ...task, agent: { id: "agent_trading", slug: "trading-agent", name: "Trading Agent" } }, { OPS_AGENT_HERMES_EXEC_ENABLED: "true" })).toMatchObject({ enabled: false, reason: "unsupported_agent" });
   });
 

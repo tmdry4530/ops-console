@@ -90,6 +90,10 @@ function outputForCapability(capabilityKey: string, task: DepartmentAdapterTask,
     return `${header}\n## Design Review Checklist\n\n- Check DESIGN.md contract, semantic tokens, layout, components, states, and accessibility requirements.\n- Produce FE handoff notes with screen flow, component specs, responsive states, and open questions.\n- Do not deploy, edit production UI, or send Discord reports directly; return artifacts to Ops Console/company router.\n\n## Proposed Output\n\n- UX findings ranked by severity.\n- FE handoff notes and acceptance criteria.\n- Missing design tokens or accessibility gaps.\n`;
   }
 
+  if (capabilityKey === "hq.policy_risk_audit") {
+    return `${header}\n## HQ Policy/Risk Audit Checklist\n\n- Confirm the task is Company-scope and does not expand agent authority.\n- Verify no raw secrets/tokens/cookies/browser storage/private keys are requested or exposed.\n- Verify no external send/publishing, paid action, public/prod deploy, DB migration, credential/env/config change, live trading/order/payment/wallet/KYC/signature is auto-executed.\n- Confirm low/medium internal direct instructions can proceed without an extra approval packet because the owner instruction is the approval.\n- Escalate high/critical or cross-scope work instead of implementing it.\n\n## Audit Output\n\n- Decision: PASS | WARN | BLOCKED.\n- Reasons and evidence refs.\n- Required owner packet only if hard safety gates are touched.\n`;
+  }
+
   return `${header}\n## Triage Checklist\n\n- Extract owner, blocker, and next action.\n- Flag stale running tasks.\n- Create follow-up tasks only when ownership is clear.\n`;
 }
 

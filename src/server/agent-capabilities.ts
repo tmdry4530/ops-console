@@ -149,6 +149,22 @@ export const AGENT_CAPABILITY_SEEDS: AgentCapabilitySeed[] = [
     avgCost: 0,
     avgDuration: 30,
     keywords: ["운영", "라우팅", "handoff", "핸드오프", "stale", "정리", "동기화"]
+  },
+  {
+    agentSlug: "hq-agent",
+    capabilityKey: "hq.policy_risk_audit",
+    inputSchema: baseInputSchema,
+    outputSchema: artifactOutputSchema,
+    allowedTools: ["ops_console_read", "policy_risk_review", "artifact_write"],
+    maxRisk: "medium",
+    expectedArtifactType: "report",
+    successCriteria: ["artifact_created", "risk_decision_recorded", "hard_safety_gates_checked", "no_direct_implementation"],
+    failureModes: ["policy_scope_unclear", "high_risk_action_detected", "secret_like_content"],
+    rollbackOrManualHandoff: "HQ audits and gates only; it does not implement work directly. Escalate high/critical or cross-scope actions.",
+    requiresApproval: false,
+    avgCost: 0,
+    avgDuration: 30,
+    keywords: ["hq", "policy", "risk", "audit", "감사", "승인", "위험", "리스크", "gate", "게이트"]
   }
 ];
 

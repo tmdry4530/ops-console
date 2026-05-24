@@ -51,6 +51,7 @@ export function hermesPromptPathForTask(task: HermesBridgeTask, companyRoot = pr
 export function hermesBridgeDecision(task: HermesBridgeTask, env: Record<string, string | undefined> = process.env): HermesBridgeDecision {
   if (env.OPS_AGENT_HERMES_EXEC_ENABLED !== "true") return { enabled: false, reason: "disabled" };
   if (!task.agent || !departmentForAgent(task.agent.slug)) return { enabled: false, reason: "unsupported_agent" };
+  if (task.agent.slug === "hq-agent" || task.agent.slug === "main-agent") return { enabled: false, reason: "disabled" };
   if (task.riskLevel !== "low" && task.riskLevel !== "medium") return { enabled: false, reason: "risk_not_allowed" };
   return { enabled: true, reason: "enabled" };
 }

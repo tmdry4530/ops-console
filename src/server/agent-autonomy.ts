@@ -17,7 +17,8 @@ export const AUTONOMOUS_WORK_AGENT_SLUGS = [
   "dev-agent",
   "content-agent",
   "docs-agent",
-  "design-agent"
+  "design-agent",
+  "hq-agent"
 ] as const;
 
 export type AutonomousTaskRecord = {
@@ -67,6 +68,24 @@ export type AutonomousTaskRunResult = {
   agentSlug?: string;
   completedParentTaskIds?: string[];
 };
+
+export const OPERATOR_DIRECT_PRIORITY_PATTERNS = [
+  "operator_direct",
+  "owner_direct",
+  "hermes_direct",
+  "direct_instruction",
+  "top_queue",
+  "priority:direct",
+  "직접지시",
+  "직접 지시",
+  "최상위 큐",
+  "즉시 작업"
+] as const;
+
+export function isOperatorDirectPriorityTask(task: { title?: string | null; summary?: string | null; nextAction?: string | null }): boolean {
+  const text = `${task.title ?? ""}\n${task.summary ?? ""}\n${task.nextAction ?? ""}`.toLowerCase();
+  return OPERATOR_DIRECT_PRIORITY_PATTERNS.some((pattern) => text.includes(pattern.toLowerCase()));
+}
 
 export function shouldCompleteHqParent(childStatuses: TaskStatus[]): boolean {
   return childStatuses.length > 0 && childStatuses.every((status) => status === "completed" || status === "failed");
@@ -643,22 +662,38 @@ export async function ensureIdleCompanyWork(now = new Date()): Promise<{ status:
 
 export async function processNextAutonomousTask(now = new Date()): Promise<AutonomousTaskRunResult> {
   await ensureIdleCompanyWork(now);
-  const task = await db.task.findFirst({
-    where: {
-      status: { in: ["queued", "running"] },
-      agent: { slug: { in: [...AUTONOMOUS_WORK_AGENT_SLUGS] } }
-    },
-    orderBy: [{ status: "asc" }, { updatedAt: "asc" }],
-    select: {
-      id: true,
-      title: true,
-      summary: true,
-      riskLevel: true,
-      projectId: true,
-      project: { select: { slug: true } },
-      agent: { select: { id: true, slug: true, name: true } }
-    }
-  });
+  const runnableWhere = {
+    status: { in: ["queued", "running"] as TaskStatus[] },
+    agent: { slug: { in: [...AUTONOMOUS_WORK_AGENT_SLUGS] } }
+  };
+  const directPriorityWhere = {
+    ...runnableWhere,
+    OR: [
+      ...OPERATOR_DIRECT_PRIORITY_PATTERNS.map((pattern) => ({ title: { contains: pattern, mode: "insensitive" as const } })),
+      ...OPERATOR_DIRECT_PRIORITY_PATTERNS.map((pattern) => ({ summary: { contains: pattern, mode: "insensitive" as const } })),
+      ...OPERATOR_DIRECT_PRIORITY_PATTERNS.map((pattern) => ({ nextAction: { contains: pattern, mode: "insensitive" as const } }))
+    ]
+  };
+  const selectTask = {
+    id: true,
+    title: true,
+    summary: true,
+    riskLevel: true,
+    projectId: true,
+    project: { select: { slug: true } },
+    agent: { select: { id: true, slug: true, name: true } }
+  };
+  const task =
+    await db.task.findFirst({
+      where: directPriorityWhere,
+      orderBy: [{ status: "asc" }, { updatedAt: "asc" }],
+      select: selectTask
+    }) ??
+    await db.task.findFirst({
+      where: runnableWhere,
+      orderBy: [{ status: "asc" }, { updatedAt: "asc" }],
+      select: selectTask
+    });
 
   if (!task) {
     return { status: "skipped", reason: "no_queued_or_running_autonomous_tasks" };

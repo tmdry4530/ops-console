@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hqParentAgentCompletionState, planAutonomousTaskRun, shouldCompleteHqParent, type AutonomousTaskRecord } from "./agent-autonomy";
+import { hqParentAgentCompletionState, isOperatorDirectPriorityTask, planAutonomousTaskRun, shouldCompleteHqParent, type AutonomousTaskRecord } from "./agent-autonomy";
 
 const safeTask: AutonomousTaskRecord = {
   id: "task_1",
@@ -103,6 +103,11 @@ describe("planAutonomousTaskRun", () => {
       approvalRequest: false,
       consoleApprovalId: "pending"
     });
+  });
+
+  it("detects owner/Hermes direct instructions as top-queue work", () => {
+    expect(isOperatorDirectPriorityTask({ title: "카드뉴스 개선", summary: "owner_direct top_queue 직접지시" })).toBe(true);
+    expect(isOperatorDirectPriorityTask({ title: "문서 정리", nextAction: "자율 스탠딩 작업" })).toBe(false);
   });
 
   it("keeps HQ parent running until all delegated children are terminal", () => {

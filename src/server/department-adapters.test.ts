@@ -89,6 +89,21 @@ describe("department adapter v1", () => {
     expect(plan.events.map((event) => event.type)).toContain("agent.adapter.completed");
   });
 
+  it("supports hq-agent policy/risk audit without implementation", () => {
+    const plan = planDepartmentAdapterRun({
+      ...baseTask,
+      id: "task_hq",
+      title: "HQ policy/risk audit",
+      summary: "직접지시 업무 safety gate audit",
+      agent: { id: "agent_hq", slug: "hq-agent", name: "HQ Agent" }
+    }, new Date("2026-05-06T00:00:00.000Z"));
+
+    expect(plan.kind).toBe("artifact_only_execution");
+    expect(plan.capabilityKey).toBe("hq.policy_risk_audit");
+    expect(plan.artifact?.content).toContain("HQ Policy/Risk Audit Checklist");
+    expect(plan.artifact?.content).toContain("instead of implementing");
+  });
+
   it("does not support removed standalone trading worker", () => {
     const plan = planDepartmentAdapterRun({
       ...baseTask,
