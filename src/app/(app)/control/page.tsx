@@ -19,10 +19,11 @@ function statusKind(status: string): StatusKind {
   return "muted";
 }
 
-export default async function ControlCenterPage() {
-  const control = await getControlCenterSummary();
+export default async function ControlCenterPage({ searchParams }: { searchParams?: Promise<{ agent?: string }> } = {}) {
+  const [{ agent: selectedAgentSlug } = {}, control] = await Promise.all([searchParams, getControlCenterSummary()]);
   const activeTasks = control.tasks.filter((task) => ["queued", "running", "waiting_approval", "needs_changes", "failed"].includes(task.status)).slice(0, 8);
   const criticalCount = control.highRiskApprovals.length + control.incidents.filter((incident) => incident.severity === "critical").length;
+  const drawerAgents = selectedAgentSlug ? control.agents.filter((agent) => agent.slug === selectedAgentSlug).concat(control.agents.filter((agent) => agent.slug !== selectedAgentSlug)).slice(0, 7) : control.agents.slice(0, 7);
 
   return (
     <>
@@ -30,8 +31,8 @@ export default async function ControlCenterPage() {
       <div className="control-shell">
         <section className="control-hero">
           <div>
-            <div className="eyebrow">Control · 조작판</div>
-            <h1>명령 / 자율성 / 개입 / Emergency Control</h1>
+            <div className="eyebrow">실행 조작판</div>
+            <h1>지시 / 승인 / 개입</h1>
             <p>Control은 실행 조작판이다. 긴 이벤트·헬스·trace·agent 관측 상세는 Observe로 분리했다.</p>
           </div>
           <div className="control-hero-actions">
@@ -42,16 +43,16 @@ export default async function ControlCenterPage() {
         </section>
 
         <section className="control-metrics" aria-label="Critical Summary">
-          <div className={`control-metric ${criticalCount > 0 ? "alert" : ""}`}><span>Critical summary</span><strong>{criticalCount}</strong><em>high/critical gates + incidents</em></div>
-          <div className="control-metric"><span>Active orchestration</span><strong>{control.summary.activeTasks}</strong><em>queue {control.summary.queueDepth}</em></div>
-          <div className="control-metric alert"><span>Human decisions</span><strong>{control.autonomyDashboard.pendingHumanDecisions}</strong><em><Link href={"/decisions" as never}>open queue</Link></em></div>
-          <div className="control-metric"><span>Interventions</span><strong>{control.autonomyDashboard.openInterventions}</strong><em>queued/running commands</em></div>
+          <div className={`control-metric ${criticalCount > 0 ? "alert" : ""}`}><span>긴급 확인</span><strong>{criticalCount}</strong><em>고위험 승인 + 장애</em></div>
+          <div className="control-metric"><span>진행 중 작업</span><strong>{control.summary.activeTasks}</strong><em>queue {control.summary.queueDepth}</em></div>
+          <div className="control-metric alert"><span>사람 결정 대기</span><strong>{control.autonomyDashboard.pendingHumanDecisions}</strong><em><Link href={"/decisions" as never}>open queue</Link></em></div>
+          <div className="control-metric"><span>개입 명령</span><strong>{control.autonomyDashboard.openInterventions}</strong><em>queued/running commands</em></div>
         </section>
 
         {control.highRiskApprovals.length > 0 && (
           <section className="control-critical">
             <div>
-              <div className="eyebrow danger">Emergency control · high-risk gate</div>
+              <div className="eyebrow danger">고위험 승인 필요</div>
               <strong>{control.highRiskApprovals[0].title}</strong>
               <p>{control.highRiskApprovals[0].summary}</p>
             </div>
@@ -65,7 +66,7 @@ export default async function ControlCenterPage() {
 
         <section className="control-grid" aria-label="Control workbench">
           <div className="card control-span-8" id="autonomy">
-            <div className="card-head"><div className="title">Autonomy Dashboard</div><div className="sub">· Governor decisions · parent/child state · verifier gate</div><div className="right"><span className="tag">canonical DB</span></div></div>
+            <div className="card-head"><div className="title">자율 작업 상태</div><div className="sub">· 자동/수동 판단 · 하위작업 · 검증 게이트</div><div className="right"><span className="tag">canonical DB</span></div></div>
             <div className="card-body autonomy-dashboard">
               <div className="control-metrics compact autonomy-metric-grid">
                 <div className="control-metric autonomy-metric"><span>Decisions</span><strong>{control.autonomyDashboard.decisions24h}</strong><em>latest window</em></div>
@@ -80,14 +81,14 @@ export default async function ControlCenterPage() {
           </div>
 
           <div className="card control-span-4" id="intervention">
-            <div className="card-head"><div className="title">Live Intervention Panel</div><div className="sub">· agent 개입은 Control에서만</div></div>
+            <div className="card-head"><div className="title">즉시 지시/개입</div><div className="sub">· agent 개입은 Control에서만</div></div>
             <div className="card-body">
               <LiveInterventionPanel agents={control.agents.map((agent) => ({ id: agent.id, name: agent.name, slug: agent.slug, status: agent.status, currentTask: agent.currentTask }))} />
             </div>
           </div>
 
           <div className="card control-span-7" id="orchestration">
-            <div className="card-head"><div className="title">Active Orchestrations</div><div className="sub">· parent / child / aggregation work only</div><div className="right"><Link href={"/observe" as never} className="btn ghost sm">상세 관측</Link></div></div>
+            <div className="card-head"><div className="title">진행 중 작업 큐</div><div className="sub">· parent / child / aggregation work only</div><div className="right"><Link href={"/observe" as never} className="btn ghost sm">상세 관측</Link></div></div>
             <div className="card-body flush control-table-wrap">
               <table className="tbl control-table">
                 <thead><tr><th>Task</th><th>State</th><th>Agent</th><th>Risk</th><th>Next</th></tr></thead>
@@ -108,12 +109,12 @@ export default async function ControlCenterPage() {
           </div>
 
           <div className="card control-span-5" id="agent-drawer">
-            <div className="card-head"><div className="title">Agent Control Drawer</div><div className="sub">· compact status + intervention target</div><div className="right"><Link href={"/observe/agents" as never} className="btn ghost sm">agent 관측</Link></div></div>
+            <div className="card-head"><div className="title">에이전트 상태 요약</div><div className="sub">· compact status + intervention target</div><div className="right"><Link href={"/observe/agents" as never} className="btn ghost sm">agent 관측</Link></div></div>
             <div className="card-body control-approval-list">
-              {control.agents.slice(0, 7).map((agent) => (
-                <div key={agent.id} className="approval-row agent-drawer-row">
-                  <div className="agent-drawer-main"><strong>{agent.name}</strong><span>{agent.slug} · {agent.currentTask ?? "현재 작업 없음"}</span></div>
-                  <div className="agent-drawer-status"><StatusBadge label={labelForStatus(agent.runtimeLabel)} kind={statusKind(agent.runtime)} /></div>
+              {drawerAgents.map((agent) => (
+                <div key={agent.id} className={`approval-row agent-drawer-row ${agent.slug === selectedAgentSlug ? "selected" : ""}`}>
+                  <div className="agent-drawer-main"><strong>{agent.name}</strong><span>{agent.slug} · {agent.currentTask ?? "현재 작업 없음"}</span>{agent.currentTaskId && <Link href={`/tasks/${agent.currentTaskId}` as never} className="tiny strong-link">current task receipt</Link>}<Link href={`/control?agent=${agent.slug}` as never} className="tiny strong-link">drawer deep link</Link></div>
+                  <div className="agent-drawer-status"><StatusBadge label={labelForStatus(agent.runtimeLabel)} kind={statusKind(agent.runtime)} /><div className="tiny"><RiskBadge risk={agent.risk} /> · q {agent.queueDepth}</div></div>
                 </div>
               ))}
             </div>
