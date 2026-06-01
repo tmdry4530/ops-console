@@ -6,6 +6,7 @@ import { GlobalCommandBar } from "@/components/global-command-bar";
 import { LiveInterventionPanel } from "@/components/live-intervention-panel";
 import { formatTimeKo, labelForStatus, labelForTaskOperationalStatus, taskChildProgressLabel } from "@/lib/korean-labels";
 import { getControlCenterSummary } from "@/server/control-center";
+import { AGENT_ORGANIZATION_POLICY, ALLOWED_AUTONOMOUS_WORK, BLOCKED_AUTONOMOUS_ACTIONS } from "@/server/agent-organization-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,12 @@ export default async function ControlCenterPage({ searchParams }: { searchParams
   const activeTasks = control.tasks.filter((task) => ["queued", "running", "waiting_approval", "needs_changes", "failed"].includes(task.status)).slice(0, 8);
   const criticalCount = control.highRiskApprovals.length + control.incidents.filter((incident) => incident.severity === "critical").length;
   const drawerAgents = selectedAgentSlug ? control.agents.filter((agent) => agent.slug === selectedAgentSlug).concat(control.agents.filter((agent) => agent.slug !== selectedAgentSlug)).slice(0, 7) : control.agents.slice(0, 7);
+  const interfaceAgents = AGENT_ORGANIZATION_POLICY.filter((agent) => agent.role === "interface");
+  const parentAgent = AGENT_ORGANIZATION_POLICY.find((agent) => agent.role === "company-parent");
+  const controlAgents = AGENT_ORGANIZATION_POLICY.filter((agent) => ["router", "risk-gate"].includes(agent.role));
+  const workerAgents = AGENT_ORGANIZATION_POLICY.filter((agent) => agent.role === "worker");
+  const serviceAgents = AGENT_ORGANIZATION_POLICY.filter((agent) => agent.role === "service-project");
+  const providerAgents = AGENT_ORGANIZATION_POLICY.filter((agent) => agent.role === "capability-provider");
 
   return (
     <>
@@ -32,12 +39,12 @@ export default async function ControlCenterPage({ searchParams }: { searchParams
         <section className="control-hero">
           <div>
             <div className="eyebrow">실행 조작판</div>
-            <h1>지시 / 승인 / 개입</h1>
-            <p>Control은 실행 조작판이다. 긴 이벤트·헬스·trace·agent 관측 상세는 Observe로 분리했다.</p>
+            <h1>지시 / 권한위임 / 하드게이트</h1>
+            <p>Control은 실행 조작판이다. 역할 안 low/medium 작업은 자동 승인하고, 역할 밖 권한은 사람 대기열 대신 권한 보유 에이전트에게 위임한다.</p>
           </div>
           <div className="control-hero-actions">
             <div className="live-pill"><span /> Live · {formatTimeKo(control.generatedAt)}</div>
-            <Link href={"/decisions" as never} className="btn warn sm">결정 대기열</Link>
+            <Link href={"/decisions" as never} className="btn warn sm">하드게이트 큐</Link>
             <Link href={"/observe" as never} className="btn ghost sm">관측 계기판</Link>
           </div>
         </section>
@@ -45,18 +52,57 @@ export default async function ControlCenterPage({ searchParams }: { searchParams
         <section className="control-metrics" aria-label="Critical Summary">
           <div className={`control-metric ${criticalCount > 0 ? "alert" : ""}`}><span>긴급 확인</span><strong>{criticalCount}</strong><em>고위험 승인 + 장애</em></div>
           <div className="control-metric"><span>진행 중 작업</span><strong>{control.summary.activeTasks}</strong><em>queue {control.summary.queueDepth}</em></div>
-          <div className="control-metric alert"><span>사람 결정 대기</span><strong>{control.autonomyDashboard.pendingHumanDecisions}</strong><em><Link href={"/decisions" as never}>open queue</Link></em></div>
+          <div className={`control-metric ${control.autonomyDashboard.pendingHumanDecisions > 0 ? "alert" : ""}`}><span>하드게이트 대기</span><strong>{control.autonomyDashboard.pendingHumanDecisions}</strong><em><Link href={"/decisions" as never}>hard gates only</Link></em></div>
           <div className="control-metric"><span>개입 명령</span><strong>{control.autonomyDashboard.openInterventions}</strong><em>queued/running commands</em></div>
+        </section>
+
+        <section className="card agent-org-panel" aria-label="Agent organization hierarchy">
+          <div className="card-head"><div className="title">현재 에이전트 조직</div><div className="sub">· Company single-parent · interface/provider 분리 · Crypto Signal hard-gated</div><div className="right"><span className="tag">policy synced</span></div></div>
+          <div className="card-body agent-org-body">
+            <div className="agent-org-node interface-only">
+              <span>Interface only</span>
+              <strong>{interfaceAgents.map((agent) => agent.displayName).join(" / ")}</strong>
+              <em>입력·알림 surface, 작업 ownership 없음</em>
+            </div>
+            <div className="agent-org-arrow">↓</div>
+            <div className="agent-org-node parent">
+              <span>Single parent</span>
+              <strong>{parentAgent?.displayName ?? "Company Agent"}</strong>
+              <em>모든 task/event/artifact/verification/trace의 운영 기준</em>
+            </div>
+            <div className="agent-org-groups">
+              <div className="agent-org-group">
+                <span>Control</span>
+                {controlAgents.map((agent) => <strong key={agent.slug}>{agent.displayName}<em>{agent.role === "router" ? "router/delegator/aggregator" : "strategy/risk/approval gate"}</em></strong>)}
+              </div>
+              <div className="agent-org-group">
+                <span>Workers</span>
+                <strong>{workerAgents.map((agent) => agent.displayName.replace(" Agent", "")).join(" · ")}<em>역할 안 low/medium 내부 작업 자동 승인 · 역할 밖 권한은 권한 보유 에이전트로 위임</em></strong>
+              </div>
+              <div className="agent-org-group warn">
+                <span>Service project</span>
+                {serviceAgents.map((agent) => <strong key={agent.slug}>{agent.displayName}<em>monitoring/report/handoff만 허용, trading/order/secret은 hard gate</em></strong>)}
+              </div>
+              <div className="agent-org-group provider">
+                <span>Capability provider</span>
+                {providerAgents.map((agent) => <strong key={agent.slug}>{agent.displayName}<em>일반 작업 에이전트 아님; 인증·권한·세션 boundary</em></strong>)}
+              </div>
+            </div>
+            <div className="agent-org-policy-row">
+              <div><span>Auto allowed</span><strong>{ALLOWED_AUTONOMOUS_WORK.length}</strong><em>existing-service maintenance/docs/eval/linkage</em></div>
+              <div><span>Hard-gated</span><strong>{BLOCKED_AUTONOMOUS_ACTIONS.length}</strong><em>new service · external send · trading · secrets · high/critical</em></div>
+            </div>
+          </div>
         </section>
 
         {control.highRiskApprovals.length > 0 && (
           <section className="control-critical">
             <div>
-              <div className="eyebrow danger">고위험 승인 필요</div>
+              <div className="eyebrow danger">하드게이트 확인 필요</div>
               <strong>{control.highRiskApprovals[0].title}</strong>
               <p>{control.highRiskApprovals[0].summary}</p>
             </div>
-            <Link href={"/decisions" as never} className="btn danger">결정 대기열에서 처리</Link>
+            <Link href={"/decisions" as never} className="btn danger">하드게이트 큐에서 처리</Link>
           </section>
         )}
 

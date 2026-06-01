@@ -30,7 +30,7 @@ describe("decideAutonomy", () => {
     expect(decision.reasons).toContain("low_medium_internal_auto_allowed");
   });
 
-  it("keeps dev code writes at approval gate before execution", () => {
+  it("allows dev code writes inside the dev role for low/medium Company-internal work", () => {
     const decision = decideAutonomy({
       ...baseInput,
       agentSlug: "dev-agent",
@@ -40,9 +40,9 @@ describe("decideAutonomy", () => {
       riskLevel: "medium"
     });
 
-    expect(decision.decision).toBe("require_approval");
-    expect(decision.autonomyLevel).toBe("L2");
-    expect(decision.reasons).toContain("dev_code_write_requires_approval");
+    expect(decision.decision).toBe("allow_auto");
+    expect(decision.autonomyLevel).toBe("L4");
+    expect(decision.reasons).toContain("dev_role_scoped_internal_patch_allowed_with_verifier");
   });
 
   it("blocks high and critical risk automatic execution even when policy says allow", () => {

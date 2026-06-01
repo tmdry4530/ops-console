@@ -4,7 +4,7 @@ import { contentHash } from "./ingest/hash";
 import { planDepartmentAdapterRun, type DepartmentAdapterRunPlan } from "./department-adapters";
 import { decideAutonomy } from "./autonomy-governor";
 import { planAggregationAfterChildTerminals } from "./autonomy-orchestration";
-import { selectCapabilityForTask } from "./agent-capabilities";
+import { AGENT_CAPABILITY_SEEDS, selectCapabilityForTask, type AgentCapabilitySeed } from "./agent-capabilities";
 import { hermesBridgeDecision, hermesReportPathForTask, runHermesCompanyTask } from "./hermes-bridge";
 import { planIdleCompanyWork, standingWorkRunSlug } from "./idle-work-planner";
 import { reportSummaryFromMarkdown } from "./task-observability";
@@ -52,11 +52,18 @@ type AutonomousApprovalPlan = {
 };
 
 export type AutonomousTaskRunPlan = {
-  kind: "execute_safe_task" | "request_console_approval" | "skip";
+  kind: "execute_safe_task" | "request_console_approval" | "delegate_to_authorized_agent" | "skip";
   taskStatus?: TaskStatus;
   agentStatus?: AgentStatus;
   taskNextAction?: string;
   approval?: AutonomousApprovalPlan;
+  delegation?: {
+    agentSlug: string;
+    capabilityKey: string;
+    requestedTools: string[];
+    title: string;
+    summary: string;
+  };
   events: AutonomousEventPlan[];
   adapterArtifact?: DepartmentAdapterRunPlan["artifact"];
 };
@@ -121,9 +128,34 @@ function taskText(task: AutonomousTaskRecord): string {
   return `${task.title}\n${task.summary ?? ""}`;
 }
 
+const nonActionableSectionHeadings = new Set(["exclude", "excluded", "excludes", "out of scope", "constraints", "approval", "risk", "success criteria"]);
+
+function actionableTaskText(task: AutonomousTaskRecord): string {
+  const lines = taskText(task).split(/\r?\n/);
+  const actionableLines: string[] = [];
+  let skipSection = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const heading = trimmed.match(/^(?:-\s*)?([A-Za-z][A-Za-z\s/_-]*):$/)?.[1]?.toLowerCase();
+    if (heading) {
+      skipSection = nonActionableSectionHeadings.has(heading);
+      if (skipSection) continue;
+    }
+
+    if (skipSection) continue;
+    actionableLines.push(line);
+  }
+
+  return actionableLines.join("\n");
+}
+
 function actionTypeForAutonomousTask(task: AutonomousTaskRecord): string {
-  const text = taskText(task).toLowerCase();
-  if (task.agent?.slug === "dev-agent" && /code write|repo_write|파일 수정|코드 작성|구현|patch|패치/.test(text)) return "code_write";
+  const text = actionableTaskText(task)
+    .toLowerCase()
+    .replace(/paper\s*\/\s*live trading gate/g, "paper trading gate")
+    .replace(/live trading gate/g, "trading gate");
+  if (/code write|repo_write|파일 수정|코드 작성|구현|patch|패치/.test(text)) return "code_write";
   if (/deploy|배포/.test(text)) return "deploy";
   if (/wallet|지갑|kyc/.test(text)) return "wallet_kyc";
   if (/live trading|실거래|order execution|주문/.test(text)) return "live_trading";
@@ -139,6 +171,33 @@ function requestedToolsForAutonomousTask(task: AutonomousTaskRecord, capabilityT
   if (actionType === "code_write") return ["repo_write", "test_runner"];
   if (["deploy", "wallet_kyc", "live_trading", "paid_action", "secret_access", "public_disclosure"].includes(actionType)) return [actionType];
   return capabilityTools.filter((tool) => !/external_send|wallet|secret|order|payment|deploy/.test(tool));
+}
+
+function canCapabilityHandle(capability: AgentCapabilitySeed, requestedTools: string[], riskLevel: RiskLevel): boolean {
+  const riskWeight: Record<RiskLevel, number> = { low: 1, medium: 2, high: 3, critical: 4 };
+  return riskWeight[riskLevel] <= riskWeight[capability.maxRisk] && requestedTools.every((tool) => capability.allowedTools.includes(tool));
+}
+
+function findAuthorizedDelegation(task: AutonomousTaskRecord, requestedTools: string[]): AgentCapabilitySeed | null {
+  if (!isSafeAutonomousRisk(task.riskLevel)) return null;
+  return AGENT_CAPABILITY_SEEDS.find((capability) =>
+    capability.agentSlug !== task.agent?.slug && canCapabilityHandle(capability, requestedTools, task.riskLevel)
+  ) ?? null;
+}
+
+function delegationTitle(task: AutonomousTaskRecord, capability: AgentCapabilitySeed): string {
+  return `[delegated authority] ${task.title}`.slice(0, 180);
+}
+
+function delegationSummary(task: AutonomousTaskRecord, capability: AgentCapabilitySeed, requestedTools: string[], decisionReasons: string[]): string {
+  return [
+    `권한 위임: ${task.agent?.slug ?? "unknown"} 역할 밖 요청을 ${capability.agentSlug} / ${capability.capabilityKey} 권한으로 이관합니다.`,
+    `원 작업: ${task.title}`,
+    `원 요약: ${task.summary ?? "없음"}`,
+    `요청 도구: ${requestedTools.join(",") || "none"}`,
+    `결정 사유: ${decisionReasons.join(",") || "role_scope_delegation"}`,
+    "사람결정 대기열로 보내지 말고, 권한 보유 에이전트가 자기 역할 범위 안에서 실행합니다. 고위험/비밀/외부발송/실거래/결제/배포 하드게이트는 유지합니다."
+  ].join("\n");
 }
 
 export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date()): AutonomousTaskRunPlan {
@@ -174,6 +233,32 @@ export function planAutonomousTaskRun(task: AutonomousTaskRecord, now = new Date
   });
 
   if (["block", "require_manual_handoff", "require_approval", "pause_scope", "escalate_hq"].includes(governorDecision.decision)) {
+    const authorizedDelegation = governorDecision.decision === "require_approval" && governorDecision.reasons.includes("requested_tool_outside_capability")
+      ? findAuthorizedDelegation(task, requestedTools)
+      : null;
+    if (authorizedDelegation) {
+      return {
+        kind: "delegate_to_authorized_agent",
+        taskStatus: "waiting_children",
+        agentStatus: "running",
+        taskNextAction: `역할 밖 권한은 ${authorizedDelegation.agentSlug}에게 위임 · ${authorizedDelegation.capabilityKey}`,
+        delegation: {
+          agentSlug: authorizedDelegation.agentSlug,
+          capabilityKey: authorizedDelegation.capabilityKey,
+          requestedTools,
+          title: delegationTitle(task, authorizedDelegation),
+          summary: delegationSummary(task, authorizedDelegation, requestedTools, governorDecision.reasons)
+        },
+        events: [
+          {
+            type: "autonomy.authority.delegation_planned",
+            severity: "info",
+            message: `Authority delegation planned: ${task.agent.slug} -> ${authorizedDelegation.agentSlug}`,
+            metadata: { ...baseMetadata, decision: "delegate_to_authorized_agent", originalDecision: governorDecision.decision, autonomyLevel: governorDecision.autonomyLevel, reasons: governorDecision.reasons.join(","), actionType, requestedTools: requestedTools.join(","), delegatedAgentSlug: authorizedDelegation.agentSlug, delegatedCapabilityKey: authorizedDelegation.capabilityKey }
+          }
+        ]
+      };
+    }
     const highSeverity = governorDecision.decision === "block" || task.riskLevel === "critical" || task.riskLevel === "high";
     return {
       kind: "request_console_approval",
@@ -397,6 +482,70 @@ export async function processAutonomousTask(task: AutonomousTaskRecord, now = ne
   const plan = planAutonomousTaskRun(task, now);
   if (plan.kind === "skip" || !task.agent) {
     return { status: "skipped", reason: "not_autonomous_work_agent", taskId: task.id, agentSlug: task.agent?.slug };
+  }
+
+  if (plan.kind === "delegate_to_authorized_agent" && plan.delegation) {
+    const delegatedAgent = await db.agent.findUnique({ where: { slug: plan.delegation.agentSlug }, select: { id: true, slug: true } });
+    if (!delegatedAgent) {
+      return { status: "skipped", reason: "delegated_agent_missing", taskId: task.id, agentSlug: task.agent.slug };
+    }
+    const delegatedAt = now.toISOString();
+    const childTask = await db.$transaction(async (tx) => {
+      await tx.task.update({
+        where: { id: task.id },
+        data: { status: plan.taskStatus, nextAction: plan.taskNextAction, blocker: null }
+      });
+      await tx.agent.update({
+        where: { id: task.agent!.id },
+        data: { status: plan.agentStatus, currentTask: task.title, heartbeatAt: now }
+      });
+      const created = await tx.task.create({
+        data: {
+          slug: `${task.id}-delegated-${plan.delegation!.agentSlug}-${Date.now()}`.slice(0, 120),
+          title: plan.delegation!.title,
+          status: "queued",
+          riskLevel: task.riskLevel,
+          summary: plan.delegation!.summary,
+          nextAction: `권한 보유 에이전트 실행 대기 · ${plan.delegation!.capabilityKey}`,
+          agentId: delegatedAgent.id,
+          projectId: task.projectId ?? undefined
+        },
+        select: { id: true, slug: true }
+      });
+      await tx.event.create({
+        data: {
+          ...plan.events[0],
+          agentId: task.agent!.id,
+          projectId: task.projectId ?? undefined,
+          taskId: task.id,
+          metadata: { ...plan.events[0].metadata, delegatedTaskId: created.id, delegatedTaskSlug: created.slug, delegatedAt }
+        }
+      });
+      await tx.event.create({
+        data: {
+          type: "hq.delegation.created",
+          severity: "info",
+          message: `Authority delegated to authorized agent: ${plan.delegation!.agentSlug}`,
+          agentId: delegatedAgent.id,
+          projectId: task.projectId ?? undefined,
+          taskId: created.id,
+          metadata: { parentTaskId: task.id, childTaskId: created.id, childTaskSlug: created.slug, delegatedAgentSlug: plan.delegation!.agentSlug, delegatedCapabilityKey: plan.delegation!.capabilityKey, requestedTools: plan.delegation!.requestedTools.join(","), mode: "authority_delegation" }
+        }
+      });
+      await tx.event.create({
+        data: {
+          type: "hq.delegation.started",
+          severity: "info",
+          message: `Authorized agent task queued: ${plan.delegation!.title}`,
+          agentId: delegatedAgent.id,
+          projectId: task.projectId ?? undefined,
+          taskId: created.id,
+          metadata: { parentTaskId: task.id, mode: "authority_delegation", delegatedAt }
+        }
+      });
+      return created;
+    });
+    return { status: "skipped", reason: `delegated_to_${plan.delegation.agentSlug}:${childTask.id}`, taskId: task.id, agentSlug: task.agent.slug };
   }
 
   if (plan.kind === "request_console_approval" && plan.approval) {

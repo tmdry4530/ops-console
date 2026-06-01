@@ -850,3 +850,9 @@ Next recommended work:
 - Added regression coverage in `src/app/(app)/control/page.reference-ui.test.tsx` for `autonomy-metric-grid`, `autonomy-level-rail`, and `agent-drawer-*` structure.
 - Verified source/runtime unit tests, typecheck, and build. Live `/control` Playwright check: `bodyOverflowX=0`, `clipped=[]`, screenshot `/tmp/control-layout-fixed.png`.
 
+## 2026-06-02 01:56:47 KST — Handoff: approval queue policy sync
+- Live path: `/Users/domclaw/ops-console`; launchd script is under runtime but `OPS_CONSOLE_APP_DIR` defaults to live path.
+- Changed files of interest: `src/server/agent-autonomy.ts`, `src/server/autonomy-governor.ts`, server tests, `/control` and `/decisions` pages.
+- Runtime verified on `http://127.0.0.1:3010/control` and `/decisions`; `/api/control/summary` reports `openApprovals=0`, `pendingHumanDecisions=0`, `queueDepth=0`, `activeTasks=3`.
+- Follow-up if needed: commit scoped changes after reviewing existing unrelated dirty work in the repo.
+

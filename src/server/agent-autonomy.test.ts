@@ -56,6 +56,28 @@ describe("planAutonomousTaskRun", () => {
     ]);
   });
 
+  it("delegates role-outside low/medium work to the agent that owns the required capability instead of human approval", () => {
+    const plan = planAutonomousTaskRun(
+      {
+        ...safeTask,
+        riskLevel: "medium",
+        title: "운영 화면 코드 패치",
+        summary: "docs-agent 요청이지만 repo_write/code write 권한이 필요한 내부 구현 작업"
+      },
+      new Date("2026-05-06T00:00:00.000Z")
+    );
+
+    expect(plan.kind).toBe("delegate_to_authorized_agent");
+    expect(plan.taskStatus).toBe("waiting_children");
+    expect(plan.delegation).toMatchObject({
+      agentSlug: "dev-agent",
+      capabilityKey: "dev.validation_proposal",
+      requestedTools: ["repo_write", "test_runner"]
+    });
+    expect(plan.approval).toBeUndefined();
+    expect(plan.events[0]?.type).toBe("autonomy.authority.delegation_planned");
+  });
+
   it("routes revenue outreach sending work to the Ops Console approval inbox even when risk is medium", () => {
     const plan = planAutonomousTaskRun(
       {
@@ -80,6 +102,43 @@ describe("planAutonomousTaskRun", () => {
       "discord.report.queued"
     ]);
     expect(plan.events[0]?.metadata).toMatchObject({ decision: "require_manual_handoff" });
+  });
+
+  it("does not classify excluded forbidden actions as requested actions", () => {
+    const plan = planAutonomousTaskRun(
+      {
+        ...safeTask,
+        riskLevel: "medium",
+        title: "Global Crypto Intelligence Collector 조사/문서화",
+        summary: [
+          "read-only source registry와 ingestion architecture를 정리한다.",
+          "Primary objective:",
+          "전략 필터와 paper/live trading gate에 공급한다.",
+          "Scope:",
+          "- Include:",
+          "  - source registry v0",
+          "Exclude:",
+          "- live trading execution",
+          "- exchange order execution",
+          "- wallet/private key/signature",
+          "- cookie/token/browser storage access",
+          "Approval:",
+          "not required for project registration and read-only research",
+          "required before browser-CDP, paid vendor, private community integration, exchange API, or any trading execution",
+          "Verifier:",
+          "docs-agent",
+          "Constraints:",
+          "- live trading/order execution 금지",
+          "- secret/token/cookie/browser storage/DB URL/private key 열람 금지"
+        ].join("\n")
+      },
+      new Date("2026-05-06T00:00:00.000Z")
+    );
+
+    expect(plan.kind).toBe("execute_safe_task");
+    expect(plan.events.find((event) => event.type === "autonomy.governor.decision")?.metadata).not.toMatchObject({
+      actionType: "wallet_kyc"
+    });
   });
 
   it("routes high-risk autonomous work to the Ops Console approval inbox", () => {

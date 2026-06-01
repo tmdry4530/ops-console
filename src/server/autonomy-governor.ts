@@ -1,4 +1,5 @@
 import type { PolicyAction, RiskLevel } from "@prisma/client";
+import { isBlockedAutonomousAction, isCompanyInternalProject } from "./agent-organization-policy";
 
 export const AUTONOMY_LEVELS = [
   { level: "L0", label: "Manual Only" },
@@ -47,8 +48,7 @@ export type AutonomyDecisionResult = {
 };
 
 const riskWeight: Record<RiskLevel, number> = { low: 1, medium: 2, high: 3, critical: 4 };
-const companyInternalProjects = new Set(["ops-console", "dom-company", "company", "projects", "docs", "research"]);
-const lowMediumInternalAgents = new Set(["docs-agent", "research-agent", "projects-agent", "design-agent", "main-agent", "hq-agent"]);
+const lowMediumInternalAgents = new Set(["docs-agent", "research-agent", "projects-agent", "design-agent", "main-agent", "hq-agent", "dev-agent", "crypto-signal"]);
 const separatedScopes = new Set(["Auth", "Crypto", "X-CDP"]);
 const forbiddenActions = new Set(["live_trading", "order_execution", "payment", "paid_action", "wallet_kyc", "secret_access", "browser_storage", "cookie_access"]);
 const manualActions = new Set(["deploy", "public_disclosure", "revenue_outreach", "bounty_submission"]);
@@ -56,10 +56,12 @@ const manualActions = new Set(["deploy", "public_disclosure", "revenue_outreach"
 export const DEFAULT_POLICY_MATRIX = [
   { scope: "docs/research/projects", agent: "docs/research/projects", autonomyLevel: "L4", decision: "allow_auto", rule: "low/medium internal only; verifier required" },
   { scope: "design", agent: "design-agent", autonomyLevel: "L3/L4", decision: "allow_auto", rule: "low/medium internal design work" },
-  { scope: "dev", agent: "dev-agent", autonomyLevel: "L2", decision: "require_approval", rule: "code write/repo_write before execution" },
+  { scope: "dev", agent: "dev-agent", autonomyLevel: "L4", decision: "allow_auto", rule: "low/medium internal code write/repo_write within dev role; verifier required" },
   { scope: "content", agent: "content-agent", autonomyLevel: "L2", decision: "allow_plan_only", rule: "factual/evidence-based draft only" },
   { scope: "alpha-terminal", agent: "alpha-terminal", autonomyLevel: "L1", decision: "allow_plan_only", rule: "read-only only; write tools blocked" },
-  { scope: "auth/crypto/x-cdp", agent: "isolated", autonomyLevel: "L6", decision: "block", rule: "separated from Company scope" },
+  { scope: "crypto-signal", agent: "crypto-signal", autonomyLevel: "L3/L4", decision: "allow_auto", rule: "Company service/project agent; monitoring/reports only; trading/order/secret blocked" },
+  { scope: "auth", agent: "auth-manager", autonomyLevel: "L2", decision: "allow_plan_only", rule: "capability provider only; no general task execution" },
+  { scope: "x-cdp", agent: "isolated", autonomyLevel: "L6", decision: "block", rule: "separated from Company scope" },
   { scope: "wallet/payment/trading/secrets", agent: "all", autonomyLevel: "L6", decision: "block", rule: "forbidden or manual-only" }
 ] as const;
 
@@ -83,7 +85,7 @@ export function decideAutonomy(input: AutonomyDecisionInput): AutonomyDecisionRe
     return { decision: "block", autonomyLevel: "L6", verifierRequired, reasons: ["alpha_terminal_read_only"] };
   }
 
-  if (forbiddenActions.has(input.actionType)) {
+  if (forbiddenActions.has(input.actionType) || isBlockedAutonomousAction(input.actionType)) {
     return { decision: input.actionType === "wallet_kyc" ? "require_manual_handoff" : "block", autonomyLevel: "L6", verifierRequired, reasons: ["forbidden_action_type"] };
   }
 
@@ -120,6 +122,9 @@ export function decideAutonomy(input: AutonomyDecisionInput): AutonomyDecisionRe
   }
 
   if (input.agentSlug === "dev-agent" && (input.actionType === "code_write" || input.requestedTools.some((tool) => tool === "repo_write"))) {
+    if ((input.riskLevel === "low" || input.riskLevel === "medium") && isCompanyInternalProject(input.projectSlug)) {
+      return { decision: "allow_auto", autonomyLevel: "L4", verifierRequired, reasons: ["dev_role_scoped_internal_patch_allowed_with_verifier"] };
+    }
     return approved(input.approvalStatus)
       ? { decision: "allow_auto", autonomyLevel: "L3", verifierRequired, reasons: ["dev_code_write_approved"] }
       : { decision: "require_approval", autonomyLevel: "L2", verifierRequired, reasons: ["dev_code_write_requires_approval"] };
@@ -129,7 +134,7 @@ export function decideAutonomy(input: AutonomyDecisionInput): AutonomyDecisionRe
     return { decision: "require_approval", autonomyLevel: "L2", verifierRequired, reasons: ["capability_requires_approval"] };
   }
 
-  if ((input.riskLevel === "low" || input.riskLevel === "medium") && lowMediumInternalAgents.has(input.agentSlug) && (companyInternalProjects.has(input.projectSlug) || input.systemScope === "Company")) {
+  if ((input.riskLevel === "low" || input.riskLevel === "medium") && lowMediumInternalAgents.has(input.agentSlug) && (isCompanyInternalProject(input.projectSlug) || input.systemScope === "Company")) {
     reasons.push("low_medium_internal_auto_allowed");
     return { decision: "allow_auto", autonomyLevel: input.riskLevel === "medium" ? "L4" : "L4", verifierRequired, reasons };
   }

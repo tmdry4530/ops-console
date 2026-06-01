@@ -298,3 +298,9 @@ Passed:
 - Added regression coverage in `src/app/(app)/control/page.reference-ui.test.tsx` for `autonomy-metric-grid`, `autonomy-level-rail`, and `agent-drawer-*` structure.
 - Verified source/runtime unit tests, typecheck, and build. Live `/control` Playwright check: `bodyOverflowX=0`, `clipped=[]`, screenshot `/tmp/control-layout-fixed.png`.
 
+## 2026-06-02 01:56:47 KST — Authority delegation policy applied to live Ops Console
+- Patched live repo `/Users/domclaw/ops-console` after confirming the 3010 proxy serves this path, not `/Users/domclaw/ops-console-runtime`.
+- Added `delegate_to_authorized_agent` autonomy plan and child-task delegation path.
+- Updated Control/Decisions UI copy: `사람 결정 대기열`/`결정 대기열` -> `하드게이트 큐`; current open approvals verified as 0.
+- Verified: targeted vitest 22/22 pass, typecheck pass, production build pass, launchd restart, HTTP/browser smoke.
+

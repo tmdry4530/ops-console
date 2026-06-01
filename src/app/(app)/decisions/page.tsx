@@ -38,9 +38,9 @@ export default async function DecisionsPage() {
       <div className="control-shell">
         <section className="control-hero">
           <div>
-            <div className="eyebrow">Decisions · 결재함</div>
-            <h1>사람 결정 대기열</h1>
-            <p>approval, request changes, manual submit, rollback approval, one-time exception을 하나의 운영자 결정 큐로 본다. Discord approval은 금지다.</p>
+            <div className="eyebrow">Hard Gates · 권한 경계</div>
+            <h1>하드게이트 큐</h1>
+            <p>역할 안 low/medium 작업은 자동 승인한다. 역할 밖 권한은 권한 보유 에이전트에게 위임하고, 이 화면은 high/critical·외부발송·실거래·결제·비밀·배포 같은 하드게이트만 다룬다.</p>
           </div>
           <div className="control-hero-actions">
             <div className="live-pill"><span /> Pending · {pending.length}</div>
@@ -49,14 +49,14 @@ export default async function DecisionsPage() {
         </section>
 
         <section className="control-metrics" aria-label="Decision Summary">
-          <div className="control-metric alert"><span>Pending decisions</span><strong>{pending.length}</strong><em>operator action required</em></div>
+          <div className={`control-metric ${pending.length > 0 ? "alert" : ""}`}><span>Hard gates</span><strong>{pending.length}</strong><em>operator action only when gated</em></div>
           <div className="control-metric alert"><span>High/Critical</span><strong>{highRisk.length}</strong><em>no auto-execution</em></div>
-          <div className="control-metric"><span>Manual submit</span><strong>{pending.filter((d) => d.status === "manual_handoff" || d.status === "approved_waiting_execution").length}</strong><em>external proof only</em></div>
+          <div className="control-metric"><span>Manual handoff</span><strong>{pending.filter((d) => d.status === "manual_handoff" || d.status === "approved_waiting_execution").length}</strong><em>external proof only</em></div>
           <div className="control-metric"><span>Needs changes</span><strong>{pending.filter((d) => d.status === "needs_changes").length}</strong><em>request changes lane</em></div>
         </section>
 
         <section className="card">
-          <div className="card-head"><div className="title">Decision Queue</div><div className="sub">· actionable first · completed hidden by default</div></div>
+          <div className="card-head"><div className="title">Hard Gate Queue</div><div className="sub">· authority delegation first · completed hidden by default</div></div>
           <div className="card-body control-approval-list">
             {pending.map((decision) => (
               <div key={decision.id} className={`approval-row action-row risk-${decision.riskLevel}`}>
@@ -77,7 +77,7 @@ export default async function DecisionsPage() {
                 <ApprovalActions approvalId={decision.id} status={decision.status} manualReportId={null} variant="full" riskLevel={decision.riskLevel} />
               </div>
             ))}
-            {pending.length === 0 && <div className="empty">현재 사람이 결정할 항목 없음 · completed 항목은 기본 숨김</div>}
+            {pending.length === 0 && <div className="empty">현재 하드게이트 항목 없음 · 역할 내 작업은 자동 승인, 역할 밖 권한은 에이전트 위임</div>}
           </div>
         </section>
       </div>
