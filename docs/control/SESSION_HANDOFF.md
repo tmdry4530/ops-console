@@ -1,38 +1,37 @@
-## Latest ops handoff — 2026-05-21 20:17 KST
+## Latest ops handoff — 2026-05-23 13:27 KST
 
-Resolved the remaining orchestration-state risk by adding real TaskStatus enum values instead of using `queued` as a delegated parent fallback.
+Fixed private access to `https://company.tail2e580b.ts.net:3010/tasks`.
 
 Changed:
 
-- `prisma/schema.prisma` and migration `20260521110500_add_orchestration_task_statuses` — added `waiting_children`, `aggregation_pending`, and `awaiting_verifier` to `TaskStatus`.
-- `src/server/ops-monitor.ts` / `.test.ts` — parent runtime transitions now persist explicit statuses: child execution => `waiting_children`, all children terminal/aggregation open => `aggregation_pending`, aggregation complete but verifier missing => `awaiting_verifier`, verifier passed => `completed`.
-- `src/server/autonomy-orchestration.ts` / `.test.ts` — dispatch and aggregation planning now emit explicit parent statuses.
-- `src/server/control-center.ts`, `src/lib/korean-labels.ts`, `src/lib/project-workspace.ts`, `src/components/status-badge.tsx`, `src/components/project-workspace.tsx` and tests — UI/projection helpers understand the new non-running parent states.
-- `docs/control/DECISIONS.md` and `docs/control/PROGRESS.md` — replaced the old queued-fallback note with the explicit status model.
+- `src/app/(app)/tasks/page.tsx` — new read-only task receipt index for `/tasks`.
+- `src/server/task-index.ts` / `.test.ts` — metrics/link helper and regression coverage.
+
+Root cause:
+
+- Router and Tailscale were healthy: `/tasks` redirected to `:3010/tasks` and Serve mapped `:3010` to local proxy.
+- Ops Console had only `/tasks/[id]`; the `/tasks` index route did not exist, so the private proxy returned 404.
 
 Runtime/deploy:
 
-- Synced source to `/Users/domclaw/ops-console-runtime`, preserving runtime `.env`.
-- Applied Prisma migration with `pnpm prisma:deploy`.
-- Rebuilt runtime and restarted `ai.company.ops-console.app`; proxy health stayed OK.
-- Ran `syncHqOrchestrationRuntime()` once after migration. Existing parents now show `aggregation_pending` / `awaiting_verifier`; `main-agent` and `hq-agent` remain idle/currentTask null.
+- Applied patch to `/Users/domclaw/ops-console-runtime`.
+- Rebuilt runtime and restarted `ai.company.ops-console.app`.
+- No Prisma migration, public bind, Tailscale Serve change, secret access, or write/control action.
 
 Verification:
 
-- RED confirmed first: updated ops-monitor expectations failed while code still returned `queued`.
-- Full source verification passed: `pnpm test` — 35 files / 119 tests.
-- `pnpm typecheck` passed.
-- `pnpm build` passed.
-- `pnpm prisma:validate` passed.
-- `pnpm docker:config` passed.
-- `pnpm lint` passed with the existing custom-font warning only.
-- Runtime migration/build/health passed: `127.0.0.1:3000/api/health`, `127.0.0.1:3010/api/health`, and `/control` returned 200 after restarting the app service with regenerated Prisma client.
+- Source: focused test passed, typecheck passed, lint warning-only, build passed.
+- Runtime: focused test passed, typecheck passed, changed-file lint passed, build passed. Full runtime lint remains blocked by pre-existing `.next-backup-control-20260520-134821` generated backup files.
+- Health: `GET http://127.0.0.1:3000/api/health` and `GET http://127.0.0.1:3010/api/health` returned 200.
+- Page: `GET http://127.0.0.1:3010/tasks` returned 200 and contained `Task receipt index`.
+- Router: Host-header smoke `/tasks` returned `302 Location: https://company.tail2e580b.ts.net:3010/tasks`.
+- Tailscale: Serve status shows `https://company.tail2e580b.ts.net:3010 -> http://127.0.0.1:3010`; local same-machine DNS for `company.tail2e580b.ts.net` still fails, known caveat.
 
 Safety:
 
-- No public bind/routing change.
-- No verifier bypass; `awaiting_verifier` remains non-completed.
-- Secret/token/cookie/browser-storage/private key/DB URL values were not printed or logged.
+- New `/tasks` page is read-only and links to existing execution receipts.
+- No approvals executed and no credentials printed.
+
 
 ## Latest ops handoff — 2026-05-21 20:02 KST
 

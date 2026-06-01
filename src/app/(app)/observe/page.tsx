@@ -48,7 +48,7 @@ export default async function ObservePage() {
         </section>
 
         <section className="control-metrics" aria-label="Observe Summary">
-          <div className="control-metric"><span>Agent fleet</span><strong>{control.summary.running}/{control.summary.agents}</strong><em>live/total</em></div>
+          <div className="control-metric"><span>Agent fleet</span><strong>{control.agents.length}/{control.agents.length}</strong><em>visible work agents · source: list</em></div>
           <div className="control-metric"><span>Traces</span><strong>{control.traces.length}</strong><em>recent lineage events</em></div>
           <div className={`control-metric ${control.summary.incidents > 0 ? "alert" : ""}`}><span>Incidents</span><strong>{control.summary.incidents}</strong><em>critical/failed task derived</em></div>
           <div className="control-metric"><span>Cost/token</span><strong>{money(control.summary.totalCostToday)}</strong><em>avg latency {control.summary.averageLatencyMs}ms</em></div>

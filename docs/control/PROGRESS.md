@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-05-23 — `/tasks` private access repair
+
+- Root cause: Company Router correctly redirected `/tasks` to `https://company.tail2e580b.ts.net:3010/tasks`, and Tailscale Serve had `:3010 -> 127.0.0.1:3010`, but Ops Console only implemented `/tasks/[id]`; `/tasks` returned 404 through the private proxy.
+- Added read-only `/tasks` task receipt index with KPI metrics, recent task table, receipt links, project/agent/risk/evidence counts, and empty state.
+- Added `src/server/task-index.ts` plus focused regression test `src/server/task-index.test.ts`.
+- Applied the patch to source and production-private runtime, rebuilt runtime, and restarted `ai.company.ops-console.app`; proxy service stayed running.
+- Verification passed: focused test, typecheck, targeted lint on changed files, build, app/proxy health, `http://127.0.0.1:3010/tasks` 200 with `Task receipt index`, router host-header `/tasks` redirects to `https://company.tail2e580b.ts.net:3010/tasks`, and Tailscale Serve status keeps `:3010 -> 127.0.0.1:3010`. Same-machine DNS for the Tailnet host still fails locally, which is the known userspace Tailscale caveat.
+- Runtime full `pnpm lint` is still blocked by pre-existing generated backup files under `.next-backup-control-20260520-134821`; changed-file lint passed. No Prisma migration, public bind change, secret access, or write/control action.
+
+
 ## 2026-05-21 — Project Workspace role-card layout fix
 
 - Fixed the Project Workspace role cards that squeezed title/agent labels into `L…`, `R…`, `D…` when the status badge shared the same header row.
@@ -13,7 +23,7 @@
 
 - Added Autonomy Governor policy decisions before autonomous task execution, covering L0–L6 levels, high/critical approval gates, scope isolation, verifier requirement, budget pause, capability/tool boundaries, and forbidden wallet/payment/trading/secret/browser-storage actions.
 - Connected safe internal docs/research/projects/design work to L3/L4 auto execution while keeping dev code writes, content publishing, external outreach, deploy/public disclosure, wallet/KYC, live trading, and high/critical actions gated through Ops Console approvals/manual handoff.
-- Fixed HQ/main orchestration runtime reconcile (2026-05-21): delegated parent tasks no longer return to `running` while child agents execute. `TaskStatus` now has explicit non-execution parent states: `waiting_children`, `aggregation_pending`, and `awaiting_verifier`. Parent rows still carry `nextAction`/event metadata (`mode: orchestration_parent`, `currentStep`, `statusReason`, `childTaskIds`, child progress counts). HQ/main agents are forced back to `idle/currentTask=null`; terminal children queue a separate main-agent aggregation task, and parent completion stays behind aggregation verifier evidence.
+- Fixed HQ/main orchestration runtime reconcile (2026-05-21): delegated parent tasks no longer return to `running` while child agents execute. Because `TaskStatus` has no `waiting_children` enum, parent rows use `queued` as the non-running delegated-equivalent plus `nextAction`/event metadata (`mode: orchestration_parent`, `currentStep: awaiting_child_results`, `statusReason: delegation_completed`, `childTaskIds`, child progress counts). HQ/main agents are forced back to `idle/currentTask=null`; terminal children queue a separate main-agent aggregation task, and parent completion stays behind aggregation verifier evidence.
 - Reduced Discord reporting noise to delegation-completed, approval-needed, blocked, and final/result report classes; routine child progress stays in Ops Console.
 - Extended `/control` with Autonomy Dashboard, Autonomy Policy Matrix, Live Intervention Panel, and Pending Human Decisions backed by Ops Console DB/CommandQueue, not placeholder UI.
 - Added CommandQueue-backed intervention actions: pause, resume, cancel, reprioritize, reassign, scope-limit, with rollback/restart/kill staying high-risk approval gated.

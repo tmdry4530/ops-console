@@ -11,7 +11,7 @@ export default async function ProjectsPage() {
       <div className="page-head">
         <div className="titles">
           <h1>Projects</h1>
-          <div className="sub">프로젝트 등록 · HQ 분배 · 역할 에이전트 Workspace</div>
+          <div className="sub">active/paused만 기본 표시 · stale/smoke/old intake는 접어서 보관</div>
         </div>
         <div className="actions">
           <Link className="btn ghost sm" href="/projects/new">+ New project</Link>
