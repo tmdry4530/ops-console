@@ -46,7 +46,7 @@ function timestamp(now: Date): string {
 }
 
 function safeRisk(riskLevel: RiskLevel) {
-  return riskLevel === "low" || riskLevel === "medium";
+  return riskLevel === "low" || riskLevel === "medium" || riskLevel === "high";
 }
 
 function outputForCapability(capabilityKey: string, task: DepartmentAdapterTask, executedAt: string): string {

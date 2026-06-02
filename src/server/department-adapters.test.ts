@@ -38,13 +38,18 @@ describe("department adapter v1", () => {
     });
   });
 
-  it("keeps high-risk adapter work behind Ops Console approval", () => {
-    const plan = planDepartmentAdapterRun({ ...baseTask, riskLevel: "high", title: "외부 제출 자동화" }, new Date("2026-05-06T00:00:00.000Z"));
+  it("auto-executes high-risk internal adapter work with artifact verification", () => {
+    const plan = planDepartmentAdapterRun({ ...baseTask, riskLevel: "high", title: "내부 검증 자동화" }, new Date("2026-05-06T00:00:00.000Z"));
 
-    expect(plan.kind).toBe("requires_approval");
-    expect(plan.artifact).toBeUndefined();
-    expect(plan.events.map((event) => event.type)).toEqual(["agent.adapter.approval_required", "discord.report.queued"]);
-    expect(plan.events[0].metadata).toMatchObject({ policyDecision: "require_approval", riskLevel: "high" });
+    expect(plan.kind).toBe("artifact_only_execution");
+    expect(plan.artifact).toBeDefined();
+    expect(plan.events.map((event) => event.type)).toEqual([
+      "agent.adapter.started",
+      "agent.adapter.artifact_created",
+      "agent.adapter.completed",
+      "discord.report.queued"
+    ]);
+    expect(plan.events.find((event) => event.type === "agent.adapter.completed")?.metadata).toMatchObject({ riskLevel: "high" });
   });
 
   it("uses specialized adapter content for research and dev agents", () => {

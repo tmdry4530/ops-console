@@ -27,7 +27,13 @@ describe("evaluateAutonomyPolicy", () => {
     });
   });
 
-  it("routes high critical public external paid production secret and main branch gates to owner or block", () => {
+  it("allows high-risk internal work with verification while routing external/sensitive gates to owner or block", () => {
+    expect(evaluateAutonomyPolicy({ actionType: "internal_refactor", riskLevel: "high", visibility: "internal", scopeApproved: true })).toMatchObject({
+      decision: "allow_with_verification",
+      requiresOwnerApproval: false,
+      verifierRequired: true,
+      hqReviewRequired: true
+    });
     expect(evaluateAutonomyPolicy({ actionType: "public_release", riskLevel: "high", visibility: "public", scopeApproved: true }).decision).toBe("require_owner_approval");
     expect(evaluateAutonomyPolicy({ actionType: "read_secret", riskLevel: "critical", visibility: "internal", scopeApproved: true, gates: { secrets: true } })).toMatchObject({ decision: "block", requiresOwnerApproval: true });
     expect(evaluateAutonomyPolicy({ actionType: "scope_expand", riskLevel: "medium", visibility: "internal", scopeApproved: false }).decision).toBe("require_owner_approval");

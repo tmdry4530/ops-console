@@ -65,11 +65,11 @@ export function evaluateAutonomyPolicy(input: AutonomyPolicyInput): AutonomyPoli
   if (criticalGate) {
     return { decision: "block", riskLevel: "critical", requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, reasons: [...reasons, "critical_or_secret_like_action_blocked"] };
   }
-  if (riskAtLeast(input.riskLevel, "high") || gates.highCritical || ownerGate) {
+  if (gates.highCritical || ownerGate) {
     return { decision: "require_owner_approval", riskLevel: input.riskLevel, requiresOwnerApproval: true, verifierRequired: true, hqReviewRequired: true, reasons: [...reasons, input.scopeApproved ? "owner_gate_triggered" : "scope_not_approved"] };
   }
-  if (input.riskLevel === "medium") {
-    return { decision: "allow_with_verification", riskLevel: input.riskLevel, requiresOwnerApproval: false, verifierRequired: true, hqReviewRequired: false, reasons: ["medium_internal_allowed_with_verification"] };
+  if (riskAtLeast(input.riskLevel, "medium")) {
+    return { decision: "allow_with_verification", riskLevel: input.riskLevel, requiresOwnerApproval: false, verifierRequired: true, hqReviewRequired: riskAtLeast(input.riskLevel, "high"), reasons: [input.riskLevel === "high" ? "high_internal_allowed_with_hq_verification" : "medium_internal_allowed_with_verification"] };
   }
   return { decision: "allow", riskLevel: input.riskLevel, requiresOwnerApproval: false, verifierRequired: false, hqReviewRequired: false, reasons: ["low_internal_allowed"] };
 }
