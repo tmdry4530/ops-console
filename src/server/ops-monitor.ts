@@ -25,6 +25,18 @@ function isTerminalTaskStatus(status: TaskStatus) {
   return status === "completed" || status === "failed";
 }
 
+export function effectiveHqChildStatuses(input: {
+  children: { id: string; status: TaskStatus }[];
+  delegatedChildrenByParent: Map<string, TaskStatus[]>;
+}): TaskStatus[] {
+  return input.children.map((child) => {
+    if (isTerminalTaskStatus(child.status)) return child.status;
+    const delegatedStatuses = input.delegatedChildrenByParent.get(child.id) ?? [];
+    if (delegatedStatuses.length === 0 || !delegatedStatuses.every(isTerminalTaskStatus)) return child.status;
+    return delegatedStatuses.every((status) => status === "completed") ? "completed" : "failed";
+  });
+}
+
 export type HqAggregationRuntime = {
   id: string;
   status: TaskStatus;
@@ -309,7 +321,44 @@ export async function syncHqOrchestrationRuntime(now = new Date()): Promise<{ re
       .map((metadata) => metadata.childTaskId as string);
     if (childTaskIds.length === 0) continue;
 
-    const children = await db.task.findMany({ where: { id: { in: childTaskIds } }, select: { status: true } });
+    const children = await db.task.findMany({ where: { id: { in: childTaskIds } }, select: { id: true, status: true } });
+    const nestedDelegationEvents = await db.event.findMany({
+      where: { type: "hq.delegation.created" },
+      select: { metadata: true }
+    });
+    const delegatedChildIdsByParent = new Map<string, string[]>();
+    for (const event of nestedDelegationEvents) {
+      const metadata = event.metadata as unknown;
+      if (!isRecord(metadata)) continue;
+      if (typeof metadata.parentTaskId !== "string" || typeof metadata.childTaskId !== "string") continue;
+      if (!childTaskIds.includes(metadata.parentTaskId)) continue;
+      const ids = delegatedChildIdsByParent.get(metadata.parentTaskId) ?? [];
+      ids.push(metadata.childTaskId);
+      delegatedChildIdsByParent.set(metadata.parentTaskId, ids);
+    }
+    const delegatedChildIds = Array.from(new Set(Array.from(delegatedChildIdsByParent.values()).flat()));
+    const delegatedChildren = delegatedChildIds.length > 0
+      ? await db.task.findMany({ where: { id: { in: delegatedChildIds } }, select: { id: true, status: true } })
+      : [];
+    const delegatedStatusById = new Map(delegatedChildren.map((child) => [child.id, child.status]));
+    const delegatedChildrenByParent = new Map<string, TaskStatus[]>();
+    for (const [parentId, ids] of Array.from(delegatedChildIdsByParent.entries())) {
+      delegatedChildrenByParent.set(parentId, ids.map((id) => delegatedStatusById.get(id)).filter((status): status is TaskStatus => Boolean(status)));
+    }
+    for (const child of children) {
+      if (isTerminalTaskStatus(child.status)) continue;
+      const delegatedStatuses = delegatedChildrenByParent.get(child.id) ?? [];
+      if (delegatedStatuses.length === 0 || !delegatedStatuses.every(isTerminalTaskStatus)) continue;
+      const resolvedStatus: TaskStatus = delegatedStatuses.every((status) => status === "completed") ? "completed" : "failed";
+      await db.task.update({
+        where: { id: child.id },
+        data: {
+          status: resolvedStatus,
+          blocker: null,
+          nextAction: `${resolvedStatus} via delegated-authority child task chain · reconciled at ${now.toISOString()}`
+        }
+      });
+    }
     const aggregationEvents = await db.event.findMany({
       where: { type: "hq.aggregation.created" },
       select: { metadata: true },
@@ -334,7 +383,7 @@ export async function syncHqOrchestrationRuntime(now = new Date()): Promise<{ re
       : null;
     const verifierPassed = Boolean(aggregationRow?.events.some((event) => /verification|verifier/i.test(`${event.type} ${event.message}`) && /passed|complete|ok|success/i.test(`${event.type} ${event.message} ${JSON.stringify(event.metadata)}`)));
     const transition = planHqOrchestrationRuntimeTransition({
-      childStatuses: children.map((child) => child.status),
+      childStatuses: effectiveHqChildStatuses({ children, delegatedChildrenByParent }),
       childTaskIds,
       aggregationTask: aggregationRow ? { id: aggregationRow.id, status: aggregationRow.status, verifierPassed } : null,
       now

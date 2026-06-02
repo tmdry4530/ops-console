@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  effectiveHqChildStatuses,
   heartbeatState,
   hqOrchestrationStatusFromChildren,
   planHqOrchestrationRuntimeTransition,
@@ -19,6 +20,25 @@ describe("ops monitor", () => {
     expect(hqOrchestrationStatusFromChildren(["completed", "running"])).toBe("waiting_children");
     expect(hqOrchestrationStatusFromChildren(["queued", "queued"])).toBe("waiting_children");
     expect(hqOrchestrationStatusFromChildren(["completed", "failed"])).toBe("aggregation_pending");
+  });
+
+  it("treats delegated-authority child chains as terminal when their delegated child completed", () => {
+    expect(effectiveHqChildStatuses({
+      children: [
+        { id: "direct-dev", status: "completed" },
+        { id: "role-outside-child", status: "waiting_children" },
+        { id: "still-running", status: "waiting_children" },
+      ],
+      delegatedChildrenByParent: new Map([
+        ["role-outside-child", ["completed"]],
+        ["still-running", ["queued"]],
+      ]),
+    })).toEqual(["completed", "completed", "waiting_children"]);
+
+    expect(effectiveHqChildStatuses({
+      children: [{ id: "role-outside-child", status: "waiting_children" }],
+      delegatedChildrenByParent: new Map([["role-outside-child", ["failed"]]]),
+    })).toEqual(["failed"]);
   });
 
   it("returns parent agent to idle while child tasks are still running", () => {
