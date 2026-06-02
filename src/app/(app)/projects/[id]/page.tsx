@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Route } from "next";
 import Link from "next/link";
 import { ArtifactLink } from "@/components/artifact-link";
+import { DeleteProjectPanel } from "@/components/delete-project-panel";
 import { EventTimeline } from "@/components/event-timeline";
 import { ProjectWorkspace } from "@/components/project-workspace";
 import { RiskBadge } from "@/components/risk-badge";
@@ -181,6 +182,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <EventTimeline events={project.events.slice(0, 8)} />
             </div>
           </div>
+          <DeleteProjectPanel projectId={project.id} projectName={project.name} />
         </div>
       </div>
     </>
