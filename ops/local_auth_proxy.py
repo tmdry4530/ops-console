@@ -1,5 +1,6 @@
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import http.client
+import json
 import os
 from urllib.parse import urlsplit, urlunsplit
 
@@ -36,10 +37,37 @@ def rewrite_location(value, request_host):
     return urlunsplit(("https", request_host, parsed.path, parsed.query, parsed.fragment))
 
 
+def check_target_health():
+    conn = http.client.HTTPConnection(TARGET_HOST, TARGET_PORT, timeout=3)
+    try:
+        conn.request("GET", "/api/health", headers={"Host": f"{TARGET_HOST}:{TARGET_PORT}"})
+        resp = conn.getresponse()
+        data = resp.read(2048)
+        return {
+            "ok": 200 <= resp.status < 400,
+            "statusCode": resp.status,
+            "reason": resp.reason,
+            "bytes": len(data),
+        }
+    except OSError as exc:
+        return {"ok": False, "error": exc.__class__.__name__}
+    finally:
+        conn.close()
+
+
 class Proxy(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def do_GET(self):
+        if self.path.split("?", 1)[0] == "/health":
+            self.health()
+            return
+        self.forward()
+
+    def do_HEAD(self):
+        if self.path.split("?", 1)[0] == "/health":
+            self.health(send_body=False)
+            return
         self.forward()
 
     def do_POST(self):
@@ -53,6 +81,27 @@ class Proxy(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         self.forward()
+
+    def health(self, send_body=True):
+        target = check_target_health()
+        status_code = 200 if target.get("ok") else 503
+        payload = {
+            "status": "ok" if target.get("ok") else "degraded",
+            "service": "company-ops-console-proxy",
+            "target": {
+                "host": TARGET_HOST,
+                "port": TARGET_PORT,
+                **target,
+            },
+        }
+        data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data) if send_body else 0))
+        self.end_headers()
+        if send_body:
+            self.wfile.write(data)
 
     def forward(self):
         client_ip = self.client_address[0]
