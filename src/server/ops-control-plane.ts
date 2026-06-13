@@ -342,13 +342,13 @@ export function redactOpsRecord<T extends Record<string, unknown>>(record: T): T
   return copy as T;
 }
 
-function isMissingOptionalControlTable(error: unknown) {
+function isOptionalControlSchemaDrift(error: unknown) {
   const message = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "";
   return Boolean(
     error &&
       typeof error === "object" &&
-      (("code" in error && error.code === "P2021") ||
-        (/table/i.test(message) && /does not exist/i.test(message)))
+      (("code" in error && (error.code === "P2021" || error.code === "P2022")) ||
+        (/table|column/i.test(message) && /does not exist/i.test(message)))
   );
 }
 
@@ -356,7 +356,7 @@ export async function findOptionalControlRecords<T>(query: () => Promise<T[]>): 
   try {
     return await query();
   } catch (error) {
-    if (isMissingOptionalControlTable(error)) return [];
+    if (isOptionalControlSchemaDrift(error)) return [];
     throw error;
   }
 }
